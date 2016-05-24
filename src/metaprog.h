@@ -3,27 +3,33 @@
  *
  * Copyright (c) 2016 Caetano Sauer
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+ * associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+ * NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 #ifndef FOSTER_BTREE_METAPROG_H
 #define FOSTER_BTREE_METAPROG_H
+
+/**
+ * \file metaprog.h
+ *
+ * Defines meta-programming utilities such as constexpr functions, type traits, and type functions.
+ * These are useful for writing generic and reusable template classes such as SlotArray.
+ *
+ * These utilities are all defined in the namespace \ref foster::meta.
+ */
 
 #include <type_traits>
 #include <cstdint>
@@ -32,21 +38,22 @@
 namespace foster { namespace meta {
 
 /**
- * Helper constexpr function (to use only at compile time) to calculate the
- * pointer size (in bytes) required to address n elements. Because this is a
- * compile-time function, it must use recursion and a single return statement.
+ * \brief Calculates number of bytes required to address n elements.
+ *
+ * Helper constexpr function (to use only at compile time) to calculate the pointer size (in bytes)
+ * required to address n elements. Because this is a compile-time function, it must use recursion
+ * and a single return statement.
  **/
 constexpr size_t get_pointer_size(size_t n, size_t iter = 0)
 {
     /*
-     * Writing the function with recursion in functional style makes it a bit
-     * difficult to understand, but here's how to break it down:
-     * 1) The first line computes log2(N) by getting the position of the
-     * highest 1-bit. This is done by shifting N until it reaches zero.
-     * The number of shifts performed is then the result.
-     * 2) The second line computes ceil(log2(N)), which is the pointer size
-     * required to address N elements. This is done by adding 1 to the result
-     * if any bit other than the highest 1-bit is also set.
+     * Writing the function with recursion in functional style makes it a bit difficult to
+     * understand, but here's how to break it down:
+     * 1) The first line computes log2(N) by getting the position of the highest 1-bit. This is done
+     * by shifting N until it reaches zero.  The number of shifts performed is then the result.
+     * 2) The second line computes ceil(log2(N)), which is the pointer size required to address N
+     * elements. This is done by adding 1 to the result if any bit other than the highest 1-bit is
+     * also set. The result is finally divided by 8 to get the number of bytes instead of bits.
      */
     return ((n >> iter) > 0) ? get_pointer_size(n, iter+1)
         : (iter / 8) + (n ^ (1 << iter) > 0 ? 1 : 0);
@@ -71,12 +78,13 @@ constexpr size_t get_pointer_size(size_t n, size_t iter = 0)
 }
 
 /**
- * Type function to allow choosing among multiple types depending on the value
- * of an integer, like a switch statement. The recursive function
- * SelectTypeImpl performs the type choice.
+ * \typedef SelectType
+ * \brief Selects among multiple types using an enumerator.
+ *
+ * Type function to allow choosing among multiple types depending on the value of an integer, like a
+ * switch statement. The recursive function SelectTypeImpl performs the type choice.
  *
  * For an example, see UnsignedInteger below.
- *
  * (stolen from Stroustroup's book)
  */
 template<unsigned N, typename ... Cases> // general case; never instantiated
@@ -94,18 +102,19 @@ template<unsigned N, typename... Cases>
 using SelectType = typename SelectTypeImpl<N, Cases...>::type;
 
 /**
- * Type function that yields a signed or unsigned integer type whose size is N.
- * Use it like this:
+ * \typedef MetaIntegerImpl
+ * \brief Type function that yields a signed or unsigned integer of N bytes.
  *
- * UnsignedInteger<8> myLongInt = 4711;
+ * Instead of using this directly, use the aliases SignedInteger and UnsignedInteger. Example:
  *
- * The point of using this type function is that it allows choosing among
- * integer types at compile time, using metaprogramming. The argument 8 on the
- * example above, for instance, could be derived from a template parameter or a
- * constexpr expression.
+ *     UnsignedInteger<8> myLongInt = 4711;
  *
- * Only integers of 1, 2, 4, and 8 bytes are supported. If N = 6, for example,
- * an 8-byte integer is returned.
+ * The point of using this type function is that it allows choosing among integer types at compile
+ * time, using metaprogramming. The argument 8 on the example above, for instance, could be derived
+ * from a template parameter or a constexpr expression.
+ *
+ * Only integers of 1, 2, 4, and 8 bytes are supported. If N = 6, for example, an 8-byte integer is
+ * returned.
  *
  * (partially stolen from Stroustroup's book)
  **/
