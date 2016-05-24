@@ -115,7 +115,7 @@ public:
     /** Size (in bytes) of integer variable required to address all slots */
     static constexpr size_t SlotPtrSize = meta::get_pointer_size(MaxSlotCount);
     /** Slot number type (derived from SlotPtrSize */
-    using SlotNumber = typename meta::UnsignedInteger<PayloadPtrSize>;
+    using SlotNumber = typename meta::UnsignedInteger<SlotPtrSize>;
     /**@}**/
 
 protected:

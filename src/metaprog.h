@@ -56,25 +56,7 @@ constexpr size_t get_pointer_size(size_t n, size_t iter = 0)
      * also set. The result is finally divided by 8 to get the number of bytes instead of bits.
      */
     return ((n >> iter) > 0) ? get_pointer_size(n, iter+1)
-        : (iter / 8) + (n ^ (1 << iter) > 0 ? 1 : 0);
-
-    /*
-     *  Here's a procedural version of this code, which I wrote earlier:
-
-    // Compute log2(n) by getting the position of the highest 1-bit.
-    IntType pos = 0, tmp = N;
-    while (tmp > 0) {
-        tmp >>= 1;
-        pos++;
-    }
-
-    // Then get ceil(log2(n)) by adding one if n had more than one 1-bit
-    size_t mask = 1 << pos;
-    if (n ^ mask > 0) { pos++; }
-
-    return pos;
-
-    */
+        : iter / 8 + (iter % 8 != 0);
 }
 
 /**
