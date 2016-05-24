@@ -1,6 +1,7 @@
 build/
 doc/html/
 doc/latex/
+.ycm_extra_conf.pyc
 
 # Compiled Object files
 *.slo
