@@ -154,6 +154,9 @@ private:
      * Compile-time assertions to verify integrity of the template parameters and the resulting
      * class.
      */
+    // We may relax this restriction in the future (e.g., to support std::array or PODs)
+    static_assert(std::is_integral<Key>::value || std::is_floating_point<Key>::value,
+            "SlotArray template argument error: Key must be either an integral or floating-point type");
     static_assert(ArrayBytes % Alignment == 0,
             "SlotArray template argument error: ArrayBytes must be a multiple of Aligment");
     static_assert(sizeof(HeaderData) % Alignment == 0,
