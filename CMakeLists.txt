@@ -18,19 +18,19 @@ set( CMAKE_EXPORT_COMPILE_COMMANDS 1 )
 SET(CMAKE_VERBOSE_MAKEFILE OFF)
 
 IF(NOT CMAKE_BUILD_TYPE)
-  SET(CMAKE_BUILD_TYPE Release CACHE STRING
-      "Default=Release build. You can choose the type of build, options are: Release Debug1 Debug2 Debug3 Profile"
+    SET(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
+        "Avialble build options: Release RelWithDebInfo(default) Profile Debug1 Debug2 Debug3"
       FORCE)
 ENDIF(NOT CMAKE_BUILD_TYPE)
 
-SET(CMAKE_CXX_FLAGS_DEBUG3  "-O0 -g -DDEBUG -DDEBUG_LEVEL=3")
-SET(CMAKE_CXX_FLAGS_DEBUG2  "-O0 -g -DDEBUG -DDEBUG_LEVEL=2")
-SET(CMAKE_CXX_FLAGS_DEBUG1  "-Og -g -DDEBUG -DDEBUG_LEVEL=1")
-## Below is better for performance analysis; above is better for debugging
-SET(CMAKE_CXX_FLAGS_PROFILE "-O3 -g -pg -DW_DEBUG_LEVEL=0 -DNDEBUG -fPIC")
-## Release build with most aggressive optimization
-## (leave debug symbols since they don't affect performance at all=
-SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -DNDEBUG -fexpensive-optimizations -finline-functions -DW_DEBUG_LEVEL=0")
+## BUILD OPTIONS
+SET(CMAKE_CXX_FLAGS_DEBUG3  "-O0 -g -DDEBUG_LEVEL=3")
+SET(CMAKE_CXX_FLAGS_DEBUG2  "-O0 -g -DDEBUG_LEVEL=2")
+SET(CMAKE_CXX_FLAGS_DEBUG1  "-Og -g -DDEBUG_LEVEL=1")
+SET(CMAKE_CXX_FLAGS_DEBUG   ${CMAKE_CXX_FLAGS_DEBUG3})
+SET(CMAKE_CXX_FLAGS_PROFILE "-O3 -g -pg -DDEBUG_LEVEL=0 -DNDEBUG -fPIC")
+SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -fexpensive-optimizations -finline-functions -DDEBUG_LEVEL=0")
+SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g ${CMAKE_CXX_FLAGS_RELEASE}")
 
 # -pedantic requires -Wno-long-long
 SET (ALWAYS_FLAGS "-std=c++11 -Wall -Wextra -Woverloaded-virtual -fno-strict-aliasing -Wpointer-arith")
