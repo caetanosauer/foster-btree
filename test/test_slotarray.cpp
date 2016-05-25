@@ -20,61 +20,118 @@
  */
 
 #include <gtest/gtest.h>
+#include <cstring>
 
 #include <slot_array.h>
 
-void test()
+// Adding a \0 at the end means we don't have to keep track of length to read the payload
+char data[6] = {'d', 'a', 't', 'a', '0', '\0'};
+
+template<class T>
+void sequential_insertions(T& slots, bool forward, int count = -1)
 {
-    foster::SlotArray<uint16_t> test1;
-    foster::SlotArray<uint64_t> test2;
-    foster::SlotArray<uint64_t, 1048576, 2> test3;
-    foster::SlotArray<uint16_t, 1048576, 8> test4;
-    foster::SlotArray<uint16_t, 139276, 4> test5;
-    foster::SlotArray<uint16_t, 1020, 4> test6;
+    size_t initial_free_space = slots.free_space();
+    size_t one_record_space = 0;
 
-    char data[6] = {'d', 'a', 't', 'a', '0', '\0'};
+    using PayloadPtr = typename T::PayloadPtr;
+    using SlotNumber = typename T::SlotNumber;
 
-    foster::SlotArray<uint16_t>::PayloadPtr ptr;
-    for (int i = 0; i < 10; i++) {
-        std::cout << "free_space = " << test1.free_space() << endl;
-        test1.allocate_payload(ptr, sizeof(data));
-        data[4] = '0' + i;
-        memcpy(test1.get_payload(ptr), data, sizeof(data));
-        test1.insert_slot(i);
-        test1[i].ghost = false;
-        test1[i].key = 100 + i;
-        test1[i].ptr = ptr;
+    PayloadPtr ptr = 0;
+    SlotNumber i = 0;
+
+    // Pick increment function depending on forward parameter. Increment if true; do nothing if false.
+    auto incr = forward ? [](SlotNumber& i){ i++; } : [](SlotNumber&){};
+    unsigned j = 0;
+
+    while (true) {
+        bool allocated = slots.allocate_payload(ptr, sizeof(data));
+        if (!allocated) { break; }
+        data[4] = '0' + (i % 10);
+        memcpy(slots.get_payload(ptr), data, sizeof(data));
+
+        bool inserted = slots.insert_slot(i);
+        // Array full -- stop
+        if (!inserted) {
+            slots.free_payload(ptr, sizeof(data));
+            break;
+        }
+        slots[i].ghost = false;
+        slots[i].key = 100 + i;
+        slots[i].ptr = ptr;
+
+        EXPECT_EQ(100 + i, slots[i].key);
+        EXPECT_TRUE(strncmp(data, (char*) slots.get_payload(ptr), 6) == 0);
+        EXPECT_EQ(i + 1, slots.slot_count());
+
+        if (one_record_space == 0) {
+            one_record_space = initial_free_space - slots.free_space();
+        }
+        else {
+            EXPECT_TRUE(slots.free_space() == initial_free_space - (i+1) * one_record_space);
+        }
+
+        incr(i);
+        j++;
+
+        if ((int) j == count) { break; }
     }
-    std::cout << "free_space = " << test1.free_space() << endl;
-    test1.print_info();
-    test1.free_payload(test1[1].ptr, sizeof(data));
-    test1.delete_slot(1);
 
-    EXPECT_EQ(102, test1[1].key);
-
-    std::cout << "free_space = " << test1.free_space() << endl;
-    test1.free_payload(test1[2].ptr, sizeof(data));
-    test1.delete_slot(2);
-    std::cout << "free_space = " << test1.free_space() << endl;
-    test1.allocate_payload(ptr, sizeof(data));
-    data[4] = 'Z';
-    memcpy(test1.get_payload(ptr), data, sizeof(data));
-    test1.insert_slot(1);
-    test1[1].ghost = false;
-    test1[1].key = 666;
-    test1[1].ptr = ptr;
-    std::cout << "free_space = " << test1.free_space() << endl;
-
-    test1.print_info();
-    test2.print_info();
-    test3.print_info();
-    test4.print_info();
-    test5.print_info();
-    test6.print_info();
+    if (count < 0) {
+        EXPECT_TRUE(slots.free_space() < one_record_space);
+    }
 }
 
-TEST(TestSlotArray, MainTest) {
-    test();
+template<class T>
+void sequential_deletions(T& slots, bool forward, int count = -1)
+{
+    size_t initial_free_space = slots.free_space();
+    size_t one_record_space = 0;
+    size_t initial_slot_count = slots.slot_count();
+
+    using SlotNumber = typename T::SlotNumber;
+
+    // Pick increment function depending on forward parameter. Increment if false; do nothing if true.
+    auto incr = !forward ? [](SlotNumber& i){ i++; } : [](SlotNumber&){};
+
+    SlotNumber i = 0;
+    unsigned j = 0;
+    while (true) {
+        slots.free_payload(slots[i].ptr, sizeof(data));
+        slots.delete_slot(i);
+        EXPECT_EQ(initial_slot_count - (j + 1), slots.slot_count());
+
+        if (slots.slot_count() == 0) { break; }
+        EXPECT_EQ(100 + j + 1, slots[i].key);
+        data[4] = '0' + ((j + 1) % 10);
+        EXPECT_TRUE(strncmp(data, (char*) slots.get_payload(slots[i].ptr), 6) == 0);
+
+        if (one_record_space == 0) {
+            one_record_space = slots.free_space() - initial_free_space;
+        }
+        else {
+            EXPECT_TRUE(slots.free_space() == initial_free_space + (j+1) * one_record_space);
+        }
+
+        incr(i);
+        j++;
+        if ((int) j == count) { break; }
+    }
+}
+
+template<class T>
+void test()
+{
+    T slots;
+    size_t initial_free_space = slots.free_space();
+
+    sequential_insertions(slots, true);
+    sequential_deletions(slots, true);
+    EXPECT_EQ(initial_free_space, slots.free_space());
+}
+
+TEST(TestSlotArray, MainTest)
+{
+    test<foster::SlotArray<uint16_t>>();
 }
 
 int main(int argc, char **argv) {
