@@ -35,7 +35,8 @@
 
 using std::size_t;
 
-#include <metaprog.h>
+#include "assertions.h"
+#include "metaprog.h"
 
 // TODO Include these temporarily for print_info function
 #include <iostream>
@@ -52,10 +53,10 @@ namespace foster {
  *
  * 1. A vector of fixed-length *slots*, which contain a key, a ghost bit, and a pointer to a
  *    payload block. This vector starts at the beginning of the allocated space (after the header)
- *    and grows towards the end.
+ *    and grows towards the end (i.e., "left to right").
  * 2. A sequence of arbitrary *payloads*, which are uninterpreted byte arrays that are aligned
  *    to boundaries of fixed-length payload blocks. These blocks are allocated sequentially,
- *    growing from the end of the allocated space towards the beginning.
+ *    growing from the end of the allocated space towards the beginning (i.e., "right to left").
  *
  * A slot array alone is not a suitable data structure to store arbitrary key-value pairs or records
  * (as expected from a general purpose B-tree), because it only supports fixed-length numeric keys
@@ -91,7 +92,6 @@ public:
     using PayloadBlock = typename std::array<char, Alignment>;
     /**@}**/
 
-
     /**
      * \brief Type of individual slots in the slot vector.
      *
@@ -117,6 +117,9 @@ public:
     /** Slot number type (derived from SlotPtrSize */
     using SlotNumber = typename meta::UnsignedInteger<SlotPtrSize>;
     /**@}**/
+
+    /** Type alias for convenience of objects using this class **/
+    using KeyType = Key;
 
 protected:
 
@@ -216,6 +219,8 @@ public:
      */
     void free_payload(PayloadPtr ptr, size_t length)
     {
+        assert<3>(ptr >= header_.payload_begin, DBGINFO, "Invalid payload pointer");
+
         // Move all payloads behind me forward, essentially deleting my blocks.
         size_t count = get_payload_count(length);
         size_t shift = sizeof(PayloadBlock) * (ptr - header_.payload_begin);
@@ -254,7 +259,7 @@ public:
     /**@{**/
 
     /** \brief Number of slots currently stored in the slot vector */
-    size_t slot_count()
+    size_t slot_count() const
     {
         return header_.slot_end;
     }
@@ -263,9 +268,13 @@ public:
      * \brief Insert a new empty slot into a given position, shifting other slots to make room.
      * \param[in] slot Position in which to insert the new slot.
      * \returns true if insertion succeeded; false if no free space available for a new slot.
+     * \throws AssertionFailure if slot number is greater than the slot count (if it's equal, then
+     *      it's an append)
      */
     bool insert_slot(SlotNumber slot)
     {
+        assert(slot <= slot_count(), DBGINFO, "Slot number out of bounds");
+
         if (free_space() < sizeof(Slot)) { return false; }
         memmove(&slots_[slot+1], &slots_[slot], sizeof(Slot) * (slot_count() - slot));
         header_.slot_end++;
@@ -285,10 +294,8 @@ public:
     }
 
     /** \brief Provides access to slot in the given position.  */
-    Slot& operator[](SlotNumber slot)
-    {
-        return slots_[slot];
-    }
+    Slot& operator[](SlotNumber slot) { return slots_[slot]; }
+    const Slot& operator[](SlotNumber slot) const { return slots_[slot]; }
 
     /**@}**/
 

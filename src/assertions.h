@@ -113,7 +113,7 @@ struct AssertionFailure : std::runtime_error {
  * A function object is used instead of a plain function because it allows choosing an empty
  * implementation (effectively disabling the assertion) if a lower debug level is in use.
  *
- * The templace class and associated function-call operator use variadic arguments, which allows
+ * The template class and associated function-call operator use variadic arguments, which allows
  * constructing an arbitrary exception object with an arbitrary list of parameters.
  *
  * @see NoAssert, assert
