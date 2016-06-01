@@ -91,12 +91,12 @@ struct DbgInfo {
 /**
  * \brief Generic exception class for failed assertions.
  */
-struct AssertionFailure : std::runtime_error {
+struct AssertionFailure : public std::runtime_error {
     /** Standard cosntructor, using an error message */
     AssertionFailure(const string& msg) : std::runtime_error(msg) {}
 
     /**
-     * This constructore includes debug information into the given message. To be used in
+     * This constructor includes debug information into the given message. To be used in
      * combination with the DBGINFO macro. Example:
      *     throw AssertionFailure(DBGINFO, "Error")
      *

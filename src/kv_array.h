@@ -35,6 +35,7 @@
 #include "slot_array.h"
 #include "search.h"
 #include "encoding.h"
+#include "exceptions.h"
 
 namespace foster {
 
@@ -82,8 +83,7 @@ public:
         // 1. Find slot into which to insert new pair.
         SlotNumber slot;
         if (find_slot(key, nullptr, slot)) {
-            // TODO throw exception
-            return false;
+            throw ExistentKeyException<K>(key);
         }
 
         // 2. Allocate space in the slot array for the encoded payload.
@@ -118,8 +118,7 @@ public:
         // 1. Find slot containing the given key.
         SlotNumber slot;
         if (!find_slot(key, nullptr, slot)) {
-            // TODO throw exception
-            return;
+            throw KeyNotFoundException<K>(key);
         }
 
         // 2. Free the payload and delete the slot.
