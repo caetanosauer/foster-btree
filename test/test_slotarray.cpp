@@ -22,7 +22,7 @@
 #include <gtest/gtest.h>
 #include <cstring>
 
-#include <slot_array.h>
+#include "slot_array.h"
 
 // Adding a \0 at the end means we don't have to keep track of length to read the payload
 char data[6] = {'d', 'a', 't', 'a', '0', '\0'};
@@ -129,12 +129,12 @@ void test()
     EXPECT_EQ(initial_free_space, slots.free_space());
 }
 
-TEST(TestSlotArray, MainTest)
-{
+TEST(TestSlotArray, MainTest) {
     test<foster::SlotArray<uint16_t>>();
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

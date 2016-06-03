@@ -24,3 +24,5 @@ FUNCTION (X_ADD_TESTCASE targetname the_libraries)
 ENDFUNCTION()
 
 X_ADD_TESTCASE(test_slotarray foster)
+X_ADD_TESTCASE(test_encoding foster)
+X_ADD_TESTCASE(test_kvarray foster)
