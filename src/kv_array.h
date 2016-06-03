@@ -54,7 +54,7 @@ namespace foster {
  * \tparam Alignment Internal alignment with which entries are stored (\see SlotArray).
  * \tparam SArray Class that implements the lower-level slot array (default SlotArray).
  * \tparam Search Class that implements the search policy (default BinarySearch).
- * \tparam Encoder Class that implements the encoding policy (default StatelessEncoder).
+ * \tparam Encoder Class that implements the encoding policy (default DefaultEncoder).
  */
 template <
     class K,
@@ -64,7 +64,7 @@ template <
     size_t Alignment = ArrayBytes / 1024,
     template <class, size_t, size_t> class SArray = SlotArray,
     template <class> class Search = BinarySearch,
-    template <class, class, class> class Encoder = StatelessEncoder
+    template <class, class, class> class Encoder = DefaultEncoder
 >
 class KeyValueArray :
     protected Encoder<K, V, PMNK_Type>,
@@ -177,13 +177,14 @@ protected:
     {
         Search<SArray<PMNK_Type, ArrayBytes, Alignment>> search_func;
 
-        PMNK_Type pmnk = this->get_pmnk(key);
+        PMNK_Type pmnk = Encoder::get_pmnk(key);
         if (search_func(*this, pmnk, slot, 0, this->slot_count())) {
             // Found poor man's normalized key -- now check if rest of the key matches
             PMNK_Type found_pmnk = pmnk;
             while (found_pmnk == pmnk) {
                 K found_key;
-                this->decode(found_key, value, this->get_payload((*this)[slot].ptr));
+                Encoder::decode(pmnk, &found_key, value,
+                        this->get_payload(this->get_slot(slot).ptr));
 
                 if (found_key == key) {
                     return true;

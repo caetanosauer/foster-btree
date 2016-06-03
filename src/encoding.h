@@ -160,7 +160,7 @@ struct PoormanPrefixing<string, PMNK_Type>
  * \brief Base class of all encoders which use a common PMNK extraction mechanism.
  */
 template <class K, class PMNK_Type = K>
-class PNMKEncoder
+class PMNKEncoder
 {
 public:
     /**
@@ -173,11 +173,10 @@ public:
         NoPrefixing<K>,
         PoormanPrefixing<K, PMNK_Type>>::type;
 
-    PMNK_Type get_pmnk(const K& key)
+    static PMNK_Type get_pmnk(const K& key)
     {
         // TODO: compiler should be able to inline this -- verify!
-        PrefixingFunction f;
-        return f(key);
+        return PrefixingFunction{}(key);
     }
 };
 
@@ -188,18 +187,18 @@ public:
  * sizeof(K) bytes of the payload are used to store the key, and the remainder ones for the value.
  */
 template <class K, class V, class PMNK_Type = K>
-class StatelessEncoder : public PNMKEncoder<K, PMNK_Type>
+class DefaultEncoder : public PMNKEncoder<K, PMNK_Type>
 {
 public:
 
     /** \brief Returns encoded length of a key-value pair */
-    size_t get_payload_length(const K&, const V&)
+    static size_t get_payload_length(const K&, const V&)
     {
         return get_payload_length(nullptr);
     }
 
     /** \brief Returns length of an encoded payload */
-    size_t get_payload_length(void*)
+    static size_t get_payload_length(void*)
     {
         if (!std::is_same<K, PMNK_Type>::value) {
             return sizeof(K) + sizeof(V);
@@ -208,7 +207,7 @@ public:
     }
 
     /** \breif Encodes a given key-value pair into a given memory area */
-    void encode(const K& key, const V& value, void* dest)
+    static void encode(const K& key, const V& value, void* dest)
     {
         if (!std::is_same<K, PMNK_Type>::value) {
             memcpy(dest, &key, sizeof(K));
@@ -219,17 +218,20 @@ public:
     /**
      * \brief Decodes a given memory area into a key-value pair
      *
-     * If value is given as a null pointer, only the key is decoded.
+     * A key or value argument given as a nullptr is not decoded. If both are nullptr, the function
+     * does nothing.
      */
-    void decode(const PMNK_Type& pmnk, K& key, V* value, void* src)
+    static void decode(const PMNK_Type& pmnk, K* key, V* value, void* src)
     {
-        if (!std::is_same<K, PMNK_Type>::value) {
-            memcpy(&key, src, sizeof(K));
+        if (key) {
+            if (!std::is_same<K, PMNK_Type>::value) {
+                memcpy(key, src, sizeof(K));
+            }
+            else { *key = pmnk; }
         }
-        else { key = pmnk; }
 
         if (value) {
-            memcpy(&value, src, sizeof(V));
+            memcpy(value, src, sizeof(V));
         }
     }
 };
@@ -237,11 +239,11 @@ public:
 /**
  * \brief Specialization of the basic encoder for variable-length (i.e., string) values
  *
- * Works just like the generic StatelessEncoder, but the length of the value must be encoded in the
+ * Works just like the generic DefaultEncoder, but the length of the value must be encoded in the
  * payload prior to the actual value bytes.
  */
 template <class K, class PMNK_Type>
-class StatelessEncoder<K, string, PMNK_Type> : public PNMKEncoder<K, PMNK_Type>
+class DefaultEncoder<K, string, PMNK_Type> : public PMNKEncoder<K, PMNK_Type>
 {
 public:
 
@@ -251,20 +253,20 @@ public:
      */
     using LengthType = uint16_t;
 
-    size_t get_payload_length(const K&, const string& value)
+    static size_t get_payload_length(const K&, const string& value)
     {
         size_t ksize = std::is_same<K, PMNK_Type>::value ? 0 : sizeof(K);
         return ksize + sizeof(LengthType) + value.length();
     }
 
-    size_t get_payload_length(void* payload)
+    static size_t get_payload_length(void* payload)
     {
         size_t ksize = std::is_same<K, PMNK_Type>::value ? 0 : sizeof(K);
         LengthType vsize = *(reinterpret_cast<LengthType*>(payload)) + sizeof(LengthType);
         return ksize + vsize;
     }
 
-    void encode(const K& key, const string& value, void* dest)
+    static void encode(const K& key, const string& value, void* dest)
     {
         if (!std::is_same<K, PMNK_Type>::value) {
             memcpy(dest, &key, sizeof(K));
@@ -273,12 +275,14 @@ public:
         memcpy(dest, value.data(), value.length());
     }
 
-    void decode(const PMNK_Type& pmnk, K& key, string* value, void* src)
+    static void decode(const PMNK_Type& pmnk, K* key, string* value, void* src)
     {
-        if (!std::is_same<K, PMNK_Type>::value) {
-            memcpy(&key, src, sizeof(K));
+        if (key) {
+            if (!std::is_same<K, PMNK_Type>::value) {
+                memcpy(key, src, sizeof(K));
+            }
+            else { *key = pmnk; }
         }
-        else { key = pmnk; }
 
         if (value) {
             LengthType length = *(reinterpret_cast<LengthType*>(src));
@@ -294,7 +298,7 @@ public:
  * bytes), followed by the length of the value, and finally the actual value bytes.
  */
 template <class PMNK_Type>
-class StatelessEncoder<string, string, PMNK_Type> : public PNMKEncoder<string, PMNK_Type>
+class DefaultEncoder<string, string, PMNK_Type> : public PMNKEncoder<string, PMNK_Type>
 {
 public:
 
@@ -304,12 +308,12 @@ public:
      */
     using LengthType = uint16_t;
 
-    size_t get_payload_length(const string& key, const string& value)
+    static size_t get_payload_length(const string& key, const string& value)
     {
         return 2 * sizeof(LengthType) + key.length() + value.length();
     }
 
-    size_t get_payload_length(void* payload)
+    static size_t get_payload_length(void* payload)
     {
         LengthType klen = *(reinterpret_cast<LengthType*>(payload));
         char* vsrc = reinterpret_cast<char*>(payload) + sizeof(LengthType) + klen;
@@ -317,7 +321,7 @@ public:
         return klen + vlen;
     }
 
-    void encode(const string& key, const string& value, void* dest)
+    static void encode(const string& key, const string& value, void* dest)
     {
         char* buf = reinterpret_cast<char*>(dest);
 
@@ -332,16 +336,24 @@ public:
         // buf += value.length();
     }
 
-    void decode(string& key, string* value, void* src)
+    static void decode(string* key, string* value, void* src)
     {
         LengthType klen = *(reinterpret_cast<LengthType*>(src));
-        key.assign(reinterpret_cast<char*>(src) + sizeof(LengthType), klen);
+        if (key) {
+            key->assign(reinterpret_cast<char*>(src) + sizeof(LengthType), klen);
+        }
 
         if (value) {
             char* vsrc = reinterpret_cast<char*>(src) + sizeof(LengthType) + klen;
             LengthType vlen = *(reinterpret_cast<LengthType*>(vsrc));
             value->assign(reinterpret_cast<char*>(vsrc) + sizeof(LengthType), vlen);
         }
+    }
+
+    // PMNK is ignored when decoding string keys
+    static void decode(const PMNK_Type&, string* key, string* value, void* src)
+    {
+        decode(key, value, src);
     }
 };
 
