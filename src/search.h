@@ -85,6 +85,7 @@ public:
                     return false;
                 }
                 begin = mid + 1;
+                ret = mid + 1;
             }
         }
 
