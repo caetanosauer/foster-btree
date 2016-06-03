@@ -30,27 +30,28 @@
 
 #include <sstream>
 
+using std::string;
+
 namespace foster {
 
 /**
  * \brief Base class for all Foster B-tree exceptions
  *
- * Maintain a stringstream object that allows derived classes to produce their own error messages
- * depending on their own fields. To build a customized message, derived classes simply override the
- * build_msg() method and write into the protected msg_ field.
+ * Allows derived classes to produce their own error messages depending on their own fields. To
+ * build a customized message, derived classes simply override the build_msg() method and write into
+ * the msg variable.
  */
 struct FosterBtreeException
 {
-    virtual const char* what()
+    virtual const char* what() const
     {
-        build_msg();
-        return msg_.str().c_str();
+        std::stringstream msg;
+        build_msg(msg);
+        return msg.str().c_str();
     }
 
-protected
-    std::stringstream msg_;
-
-    virtual void build_msg()
+protected:
+    virtual void build_msg(std::stringstream&) const
     {}
 };
 
@@ -64,9 +65,9 @@ struct ExistentKeyException : protected FosterBtreeException
 protected:
     K key_;
 
-    virtual void build_msg()
+    virtual void build_msg(std::stringstream& msg) const
     {
-        msg_ << "Key already exists: " << key_;
+        msg << "Key already exists: " << key_;
     }
 };
 
@@ -80,9 +81,30 @@ struct KeyNotFoundException : protected FosterBtreeException
 protected:
     K key_;
 
-    virtual void build_msg()
+    virtual void build_msg(std::stringstream& msg) const
     {
-        msg_ << "Key not found: " << key_;
+        msg << "Key not found: " << key_;
+    }
+};
+
+/// Thrown when a node is incorrectly added as a foster child of another node
+template <class K, class IdType>
+struct InvalidFosterChildException : protected FosterBtreeException
+{
+    InvalidFosterChildException(const K& key, IdType child_id, IdType parent_id, const string& msg)
+        : key_(key), child_id_(child_id), parent_id_(parent_id), msg_(msg)
+    {}
+
+protected:
+    K key_;
+    IdType child_id_;
+    IdType parent_id_;
+    string msg_;
+
+    virtual void build_msg(std::stringstream& msg) const
+    {
+        msg << "Cannot add node " << child_id_ << " as a foster child of node " << parent_id_
+            << " with foster key [" << key_ << "] because: " << msg_;
     }
 };
 

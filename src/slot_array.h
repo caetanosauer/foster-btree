@@ -251,6 +251,11 @@ public:
         return payloads_[ptr].data();
     }
 
+    void* get_payload_for_slot(SlotNumber slot)
+    {
+        return get_payload(get_slot(slot).ptr);
+    }
+
     /**@}**/
 
     /**
@@ -294,8 +299,11 @@ public:
     }
 
     /** \brief Provides access to slot in the given position.  */
-    Slot& operator[](SlotNumber slot) { return slots_[slot]; }
-    const Slot& operator[](SlotNumber slot) const { return slots_[slot]; }
+    Slot& get_slot(SlotNumber slot) { return slots_[slot]; }
+    const Slot& get_slot(SlotNumber slot) const { return slots_[slot]; }
+    /** \brief Convenience alias for slot() **/
+    Slot& operator[](SlotNumber slot) { return get_slot(slot); }
+    const Slot& operator[](SlotNumber slot) const { return get_slot(slot); }
 
     /**@}**/
 

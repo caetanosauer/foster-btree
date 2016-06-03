@@ -32,9 +32,6 @@
 #include <cstddef>
 #include <iostream>
 
-#include "slot_array.h"
-#include "search.h"
-#include "encoding.h"
 #include "exceptions.h"
 
 namespace foster {
@@ -52,43 +49,62 @@ namespace foster {
  * \tparam V Type of values
  * \tparam ArrayBytes Size to be occupied by the array in memory.
  * \tparam Alignment Internal alignment with which entries are stored (\see SlotArray).
- * \tparam SArray Class that implements the lower-level slot array (default SlotArray).
- * \tparam Search Class that implements the search policy (default BinarySearch).
- * \tparam Encoder Class that implements the encoding policy (default DefaultEncoder).
+ * \tparam SArray Class that implements the lower-level slot array (e.g., SlotArray).
+ * \tparam Search Class that implements the search policy (e.g., BinarySearch).
+ * \tparam Encoder Class that implements the encoding policy (e.g., DefaultEncoder).
  */
 template <
     class K,
     class V,
     class PMNK_Type,
     size_t ArrayBytes,
-    size_t Alignment = ArrayBytes / 1024,
-    template <class, size_t, size_t> class SArray = SlotArray,
-    template <class> class Search = BinarySearch,
-    template <class, class, class> class Encoder = DefaultEncoder
+    size_t Alignment,
+    template <class, size_t, size_t> class SArray,
+    template <class> class Search,
+    template <class, class, class> class Enc
 >
 class KeyValueArray :
-    protected Encoder<K, V, PMNK_Type>,
     protected SArray<PMNK_Type, ArrayBytes, Alignment>
 {
 public:
 
-    using SlotNumber = typename SArray<PMNK_Type, ArrayBytes, Alignment>::SlotNumber;
-    using PayloadPtr = typename SArray<PMNK_Type, ArrayBytes, Alignment>::PayloadPtr;
+    using SlotArray = SArray<PMNK_Type, ArrayBytes, Alignment>;
+    using SlotNumber = typename SlotArray::SlotNumber;
+    using PayloadPtr = typename SlotArray::PayloadPtr;
+    using Encoder = Enc<K, V, PMNK_Type>;
+    using SearchFunction = Search<SArray<PMNK_Type, ArrayBytes, Alignment>>;
 
     /**
      * \brief Insert a key-value pair into the array.
      */
     bool insert(const K& key, const V& value)
     {
-        // 1. Find slot into which to insert new pair.
+        // 1. Insert key and allocate empty payload space for the pair
         SlotNumber slot;
+        size_t payload_length = Encoder::get_payload_length(key, value);
+        if (!insert_key(key, payload_length, slot)) {
+            return false;
+        }
+
+        // 2. Encode (or serialize) the key-value pair into the payload.
+        void* payload_addr = this->get_payload(this->get_slot(slot).ptr);
+        Encoder::encode(key, value, payload_addr);
+
+        return true;
+    }
+
+    /**
+     * \brief Insert a slot with the given key and reserve the given amount of payload.
+     */
+    bool insert_key(const K& key, size_t payload_length, SlotNumber& slot)
+    {
+        // 1. Find slot into which to insert new pair.
         if (find_slot(key, nullptr, slot)) {
             throw ExistentKeyException<K>(key);
         }
 
         // 2. Allocate space in the slot array for the encoded payload.
         PayloadPtr payload;
-        size_t payload_length = this->get_payload_length(key, value);
         if (!this->allocate_payload(payload, payload_length)) {
             // No space left
             return false;
@@ -100,12 +116,9 @@ public:
             this->free_payload(payload, payload_length);
             return false;
         }
-        (*this)[slot].key = this->get_pmnk(key);
-        (*this)[slot].ptr = payload;
-        (*this)[slot].ghost = false;
-
-        // 4. Encode (or serialize) the key-value pair into the payload.
-        this->encode(key, value, this->get_payload(payload));
+        this->get_slot(slot).key = Encoder::get_pmnk(key);
+        this->get_slot(slot).ptr = payload;
+        this->get_slot(slot).ghost = false;
 
         return true;
     }
@@ -123,8 +136,8 @@ public:
 
         // 2. Free the payload and delete the slot.
         // TODO: set ghost bit and implement support for ghost records (e.g., in Search)
-        PayloadPtr payload = (*this)[slot].payload;
-        size_t payload_length = this->get_payload_length(this->get_payload(payload));
+        PayloadPtr payload = this->get_slot(slot).payload;
+        size_t payload_length = Encoder::get_payload_length(this->get_payload(payload));
         this->free_payload(payload, payload_length);
 
         this->delete_slot(slot);
@@ -137,24 +150,6 @@ public:
     {
         SlotNumber slot;
         return find_slot(key, value, slot);
-    }
-
-    /**
-     * Debugging/utility function to print the array's contents.
-     */
-    void print(std::ostream& o)
-    {
-        using std::endl;
-
-        for (SlotNumber i = 0; i < this->slot_count(); i++) {
-            o << "Slot " << i << " [pmnk = " << (*this)[i].key << ", payload = " << (*this)[i].ptr
-                << ", ghost = " << (*this)[i].ghost << "]" << endl;
-
-            K key;
-            V value;
-            this->decode(key, &value, this->get_payload((*this)[i].ptr));
-            o << "\tk = " << key << ", v = " << value << endl;
-        }
     }
 
 protected:
@@ -175,10 +170,8 @@ protected:
     // TODO parametrize comparison function
     bool find_slot(const K& key, V* value, SlotNumber& slot)
     {
-        Search<SArray<PMNK_Type, ArrayBytes, Alignment>> search_func;
-
         PMNK_Type pmnk = Encoder::get_pmnk(key);
-        if (search_func(*this, pmnk, slot, 0, this->slot_count())) {
+        if (SearchFunction{}(*this, pmnk, slot, 0, this->slot_count())) {
             // Found poor man's normalized key -- now check if rest of the key matches
             PMNK_Type found_pmnk = pmnk;
             while (found_pmnk == pmnk) {
@@ -197,7 +190,7 @@ protected:
                 // Not a match. Try next slot, which might have the same pmnk.
                 slot++;
                 if (slot >= this->slot_count()) { return false; }
-                found_pmnk = (*this)[slot].key;
+                found_pmnk = this->get_slot(slot).key;
             }
             return false;
         }
@@ -206,6 +199,51 @@ protected:
             return false;
         }
     }
+
+#ifdef ENABLE_TESTING
+public:
+
+    /// Debugging/utility function to print the array's contents.
+    void print(std::ostream& o)
+    {
+        using std::endl;
+
+        for (SlotNumber i = 0; i < this->slot_count(); i++) {
+            o << "Slot " << i << " [pmnk = " << this->get_slot(i).key << ", payload = "
+                << this->get_slot(i).ptr << ", ghost = " << this->get_slot(i).ghost << "]"
+                << endl;
+
+            K key;
+            V value;
+            PMNK_Type pmnk = this->get_slot(i).key;
+            Encoder::decode(pmnk, &key, &value, this->get_payload_for_slot(i));
+            o << "\tk = " << key << ", v = " << value << endl;
+        }
+    }
+
+    /// Debugging/testing function to verify if contents are sorted
+    bool is_sorted()
+    {
+        PMNK_Type pmnk, prev_pmnk;
+        K key, prev_key;
+
+        for (SlotNumber i = 0; i < this->slot_count(); i++) {
+            pmnk = this->get_slot(i).key;
+            Encoder::decode(pmnk, &key, nullptr, this->get_payload_for_slot(i));
+
+            if (i > 0) {
+                if (pmnk < prev_pmnk) return false;
+                if (key < prev_key) return false;
+            }
+
+            prev_pmnk = pmnk;
+            prev_key = key;
+        }
+
+        return true;
+    }
+
+#endif // ENABLE_TESTING
 
 };
 
