@@ -95,6 +95,9 @@ struct AssertionFailure : public std::runtime_error {
     /** Standard cosntructor, using an error message */
     AssertionFailure(const string& msg) : std::runtime_error(msg) {}
 
+    /** Empty constructor -- no error message */
+    AssertionFailure() : std::runtime_error("assertion failure") {}
+
     /**
      * This constructor includes debug information into the given message. To be used in
      * combination with the DBGINFO macro. Example:
