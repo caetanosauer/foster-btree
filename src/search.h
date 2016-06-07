@@ -69,6 +69,8 @@ public:
 
             if (key == mid_key) {
                 ret = mid;
+                // handle repeated keys -- return first occurence
+                while (ret > 0 && array[ret-1].key == key) { ret--; }
                 return true;
             }
             else if (key < mid_key) {
