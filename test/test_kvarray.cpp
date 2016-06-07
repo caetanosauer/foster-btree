@@ -32,15 +32,15 @@
 constexpr size_t DftArrayBytes = 8192;
 constexpr size_t DftAlignment = 8;
 
+template<class PMNK_Type>
+using SArray = foster::SlotArray<PMNK_Type, DftArrayBytes, DftAlignment>;
+
 template<class K, class V, class PMNK_Type>
-using KVArray = foster::KeyValueArray<
-        K, V, PMNK_Type,
-        DftArrayBytes,
-        DftAlignment,
-        foster::SlotArray,
-        foster::BinarySearch,
-        foster::DefaultEncoder
-    >;
+using KVArray = foster::KeyValueArray<K, V,
+      SArray<PMNK_Type>,
+      foster::BinarySearch<SArray<PMNK_Type>>,
+      foster::DefaultEncoder<K, V, PMNK_Type>
+>;
 
 
 TEST(TestInsertions, MainTest)

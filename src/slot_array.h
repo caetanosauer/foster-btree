@@ -90,6 +90,8 @@ public:
     using PayloadPtr = typename meta::UnsignedInteger<PayloadPtrSize>;
     /** Type of payload blocks (a fixed-length byte array) */
     using PayloadBlock = typename std::array<char, Alignment>;
+    /** For acessing the alignment size externally **/
+    static constexpr size_t AlignmentSize = Alignment;
     /**@}**/
 
     /**

@@ -47,32 +47,30 @@ namespace foster {
  *
  * \tparam K Type of keys
  * \tparam V Type of values
- * \tparam ArrayBytes Size to be occupied by the array in memory.
- * \tparam Alignment Internal alignment with which entries are stored (\see SlotArray).
- * \tparam SArray Class that implements the lower-level slot array (e.g., SlotArray).
+ * \tparam SlotArray Class that implements the lower-level slot array (e.g., SlotArray).
  * \tparam Search Class that implements the search policy (e.g., BinarySearch).
  * \tparam Encoder Class that implements the encoding policy (e.g., DefaultEncoder).
  */
 template <
     class K,
     class V,
-    class PMNK_Type,
-    size_t ArrayBytes,
-    size_t Alignment,
-    template <class, size_t, size_t> class SArray,
-    template <class> class Search,
-    template <class, class, class> class Enc
+    class SlotArray,
+    class Search,
+    class Encoder
 >
-class KeyValueArray :
-    protected SArray<PMNK_Type, ArrayBytes, Alignment>
+class KeyValueArray : protected SlotArray
 {
 public:
 
-    using SlotArray = SArray<PMNK_Type, ArrayBytes, Alignment>;
+    using KeyType = K;
+    using ValueType = V;
+    using EncoderType = Encoder;
     using SlotNumber = typename SlotArray::SlotNumber;
     using PayloadPtr = typename SlotArray::PayloadPtr;
-    using Encoder = Enc<K, V, PMNK_Type>;
-    using SearchFunction = Search<SArray<PMNK_Type, ArrayBytes, Alignment>>;
+    using PMNK_Type = typename SlotArray::KeyType;
+    using ThisType = KeyValueArray<K, V, SlotArray, Search, Encoder>;
+
+    static constexpr size_t Alignment = SlotArray::AlignmentSize;
 
     /**
      * \brief Insert a key-value pair into the array.
@@ -87,7 +85,7 @@ public:
         }
 
         // 2. Encode (or serialize) the key-value pair into the payload.
-        void* payload_addr = this->get_payload(this->get_slot(slot).ptr);
+        void* payload_addr = this->get_payload_for_slot(slot);
         Encoder::encode(key, value, payload_addr);
 
         return true;
@@ -171,13 +169,12 @@ protected:
     bool find_slot(const K& key, V* value, SlotNumber& slot)
     {
         PMNK_Type pmnk = Encoder::get_pmnk(key);
-        if (SearchFunction{}(*this, pmnk, slot, 0, this->slot_count())) {
+        if (Search{}(*this, pmnk, slot, 0, this->slot_count())) {
             // Found poor man's normalized key -- now check if rest of the key matches
             PMNK_Type found_pmnk = pmnk;
             while (found_pmnk == pmnk) {
                 K found_key;
-                Encoder::decode(pmnk, &found_key, value,
-                        this->get_payload(this->get_slot(slot).ptr));
+                Encoder::decode(pmnk, &found_key, value, this->get_payload_for_slot(slot));
 
                 if (found_key == key) {
                     return true;
