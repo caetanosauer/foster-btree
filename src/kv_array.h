@@ -37,6 +37,12 @@
 
 namespace foster {
 
+// Forward declaration for friend function declaration below
+namespace internal {
+    template<class T, class S>
+    bool move_kv_records(T&, S, T&, S, size_t);
+}
+
 /**
  * \brief Provides ordered storage and search of key-value pairs in a slot array.
  *
@@ -152,6 +158,11 @@ public:
         return find_slot(key, value, slot);
     }
 
+    size_t size()
+    {
+        return this->slot_count();
+    }
+
 protected:
 
     /**
@@ -199,7 +210,9 @@ protected:
         }
     }
 
-#ifdef ENABLE_TESTING
+    template<class T, class S>
+    friend bool internal::move_kv_records(T&, S, T&, S, size_t);
+
 public:
 
     /// Debugging/utility function to print the array's contents.
@@ -242,10 +255,79 @@ public:
         return true;
     }
 
-#endif // ENABLE_TESTING
-
 };
 
+namespace internal {
+
+template <class KVArray, class SlotNumber = typename KVArray::SlotNumber>
+bool move_kv_records(
+        KVArray& dest, SlotNumber dest_slot,
+        KVArray& src, SlotNumber src_slot,
+        size_t slot_count)
+{
+    using Encoder = typename KVArray::EncoderType;
+    using PayloadPtr = typename KVArray::PayloadPtr;
+
+    SlotNumber last_slot = src_slot + slot_count - 1;
+    assert<0>(last_slot < src.slot_count());
+    assert<1>(src.is_sorted());
+
+    bool success = true;
+    SlotNumber i = src_slot, j = dest_slot;
+
+    // First copy slots from the other array into this one
+    while (i <= last_slot) {
+        success = dest.insert_slot(j);
+        if (!success) { break; }
+
+        void* payload_src = src.get_payload_for_slot(i);
+        size_t length = Encoder::get_payload_length(payload_src);
+
+        PayloadPtr payload_dest_ptr;
+        success = dest.allocate_payload(payload_dest_ptr, length);
+        if (!success) {
+            dest.delete_slot(j);
+            break;
+        }
+
+        // TODO add Slot::init or reset or something like that
+        dest.get_slot(j).key = src.get_slot(i).key;
+        dest.get_slot(j).ptr = payload_dest_ptr;
+        dest.get_slot(j).ghost = src.get_slot(i).ghost;
+
+        memcpy(dest.get_payload(payload_dest_ptr), payload_src, length);
+
+        i++;
+        j++;
+    }
+
+    // If copy failed in the middle, we need to remove the entries that were already copied
+    if (!success) {
+        while (j > dest_slot) {
+            j--;
+            dest.free_payload(dest.get_slot(j).ptr,
+                    Encoder::get_payload_length(dest.get_payload_for_slot(j)));
+            dest.delete_slot(j);
+        }
+    }
+    // Otherwise, we must delete the copied slots on the source array
+    else {
+        assert<1>(i == last_slot + 1);
+        while (i > src_slot) {
+            i--;
+            src.free_payload(src.get_slot(i).ptr,
+                    Encoder::get_payload_length(src.get_payload_for_slot(i)));
+            src.delete_slot(i);
+        }
+    }
+
+    assert<1>(dest.is_sorted());
+    assert<1>(src.is_sorted());
+
+    return success;
+}
+
+} // namespace internal
 
 } // namespace foster
 
