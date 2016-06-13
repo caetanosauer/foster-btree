@@ -33,6 +33,7 @@
 #include <iostream>
 
 #include "exceptions.h"
+#include "assertions.h"
 
 namespace foster {
 
@@ -87,6 +88,7 @@ public:
         // 2. Encode (or serialize) the key-value pair into the payload.
         void* payload_addr = this->get_payload_for_slot(slot);
         Encoder::encode(key, value, payload_addr);
+        assert<3>(is_sorted());
 
         return true;
     }
@@ -134,7 +136,7 @@ public:
 
         // 2. Free the payload and delete the slot.
         // TODO: set ghost bit and implement support for ghost records (e.g., in Search)
-        PayloadPtr payload = this->get_slot(slot).payload;
+        PayloadPtr payload = this->get_slot(slot).ptr;
         size_t payload_length = Encoder::get_payload_length(this->get_payload(payload));
         this->free_payload(payload, payload_length);
 
@@ -144,7 +146,7 @@ public:
     /**
      * \brief Searches for a given key in the array.
      */
-    bool find(const K& key, V* value)
+    bool find(const K& key, V* value = nullptr)
     {
         SlotNumber slot;
         return find_slot(key, value, slot);
@@ -174,7 +176,7 @@ protected:
             PMNK_Type found_pmnk = pmnk;
             while (found_pmnk == pmnk) {
                 K found_key;
-                Encoder::decode(pmnk, &found_key, value, this->get_payload_for_slot(slot));
+                Encoder::decode(this->get_payload_for_slot(slot), &found_key, value, &pmnk);
 
                 if (found_key == key) {
                     return true;
@@ -213,7 +215,7 @@ public:
             K key;
             V value;
             PMNK_Type pmnk = this->get_slot(i).key;
-            Encoder::decode(pmnk, &key, &value, this->get_payload_for_slot(i));
+            Encoder::decode(this->get_payload_for_slot(i), &key, &value, &pmnk);
             o << "\tk = " << key << ", v = " << value << endl;
         }
     }
@@ -226,7 +228,7 @@ public:
 
         for (SlotNumber i = 0; i < this->slot_count(); i++) {
             pmnk = this->get_slot(i).key;
-            Encoder::decode(pmnk, &key, nullptr, this->get_payload_for_slot(i));
+            Encoder::decode(this->get_payload_for_slot(i), &key, nullptr, &pmnk);
 
             if (i > 0) {
                 if (pmnk < prev_pmnk) return false;

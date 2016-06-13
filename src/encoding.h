@@ -47,6 +47,8 @@
 #include <cstring>
 #include <string>
 
+#include "assertions.h"
+
 using std::string;
 
 namespace foster {
@@ -221,13 +223,16 @@ public:
      * A key or value argument given as a nullptr is not decoded. If both are nullptr, the function
      * does nothing.
      */
-    static void decode(const PMNK_Type& pmnk, K* key, V* value, void* src)
+    static void decode(const void* src, K* key, V* value = nullptr, PMNK_Type* pmnk = nullptr)
     {
         if (key) {
             if (!std::is_same<K, PMNK_Type>::value) {
                 memcpy(key, src, sizeof(K));
             }
-            else { *key = pmnk; }
+            else {
+                assert<0>(pmnk, "PMNK required to decode this key");
+                *key = *pmnk;
+            }
         }
 
         if (value) {
@@ -246,6 +251,9 @@ template <class K, class PMNK_Type>
 class DefaultEncoder<K, string, PMNK_Type> : public PMNKEncoder<K, PMNK_Type>
 {
 public:
+
+    // TODO: we should use asignment operator instead of memcpy! then the mechanism would also work
+    // for arbitrary objects which hold pointers to resources -- e.g., string
 
     /**
      * Size of the encoded length. This could be a template argument, but C++ does not allow partial
@@ -275,18 +283,84 @@ public:
         memcpy(dest, value.data(), value.length());
     }
 
-    static void decode(const PMNK_Type& pmnk, K* key, string* value, void* src)
+    static void decode(const void* src, K* key, string* value = nullptr, PMNK_Type* pmnk = nullptr)
     {
         if (key) {
             if (!std::is_same<K, PMNK_Type>::value) {
                 memcpy(key, src, sizeof(K));
             }
-            else { *key = pmnk; }
+            else {
+                assert<0>(pmnk, "PMNK required to decode this key");
+                *key = *pmnk;
+            }
         }
 
         if (value) {
-            LengthType length = *(reinterpret_cast<LengthType*>(src));
-            value->assign(reinterpret_cast<char*>(src) + sizeof(LengthType), length);
+            LengthType length = *(reinterpret_cast<const LengthType*>(src));
+            value->assign(reinterpret_cast<const char*>(src) + sizeof(LengthType), length);
+        }
+    }
+};
+
+/**
+ * \brief Specialization of the basic encoder for variable-length (i.e., string) values
+ *
+ * Works just like the generic DefaultEncoder, but the length of the value must be encoded in the
+ * payload prior to the actual value bytes.
+ */
+template <class V, class PMNK_Type>
+class DefaultEncoder<string, V, PMNK_Type> : public PMNKEncoder<string, PMNK_Type>
+{
+public:
+
+    /**
+     * Size of the encoded length. This could be a template argument, but C++ does not allow partial
+     * template specialization with default arguments.
+     */
+    using LengthType = uint16_t;
+
+    static size_t get_payload_length(const string& key, const V&)
+    {
+        size_t vsize = std::is_same<V, PMNK_Type>::value ? 0 : sizeof(V);
+        return vsize + sizeof(LengthType) + key.length();
+    }
+
+    static size_t get_payload_length(void* payload)
+    {
+        size_t ksize = *(reinterpret_cast<LengthType*>(payload)) + sizeof(LengthType);
+        size_t vsize = std::is_same<V, PMNK_Type>::value ? 0 : sizeof(V);
+        return ksize + vsize;
+    }
+
+    static void encode(const string& key, const V& value, void* dest)
+    {
+        char* char_dest = reinterpret_cast<char*>(dest);
+        *(reinterpret_cast<LengthType*>(dest)) = key.length();
+        char_dest += sizeof(LengthType);
+        memcpy(char_dest, key.data(), key.length());
+        char_dest += key.length();
+
+        if (!std::is_same<V, PMNK_Type>::value) {
+            memcpy(char_dest, &value, sizeof(V));
+        }
+    }
+
+    static void decode(const void* src, string* key, V* value = nullptr, PMNK_Type* pmnk = nullptr)
+    {
+        const char* char_src = reinterpret_cast<const char*>(src);
+        LengthType length = *(reinterpret_cast<const LengthType*>(char_src));
+        char_src += sizeof(LengthType);
+        if (key) { key->assign(char_src, length); }
+        char_src += length;
+
+        if (value) {
+            if (!std::is_same<V, PMNK_Type>::value) {
+                memcpy(value, char_src, sizeof(V));
+            }
+            else {
+                assert<0>(pmnk, "PMNK required to decode this value");
+                *key = *pmnk;
+            }
         }
     }
 };
@@ -318,7 +392,7 @@ public:
         LengthType klen = *(reinterpret_cast<LengthType*>(payload));
         char* vsrc = reinterpret_cast<char*>(payload) + sizeof(LengthType) + klen;
         LengthType vlen = *(reinterpret_cast<LengthType*>(vsrc));
-        return klen + vlen;
+        return klen + vlen + 2*sizeof(LengthType);
     }
 
     static void encode(const string& key, const string& value, void* dest)
@@ -336,24 +410,19 @@ public:
         // buf += value.length();
     }
 
-    static void decode(string* key, string* value, void* src)
+    static void decode(const void* src, string* key, string* value = nullptr,
+            PMNK_Type* /* ignored */ = nullptr)
     {
-        LengthType klen = *(reinterpret_cast<LengthType*>(src));
+        LengthType klen = *(reinterpret_cast<const LengthType*>(src));
         if (key) {
-            key->assign(reinterpret_cast<char*>(src) + sizeof(LengthType), klen);
+            key->assign(reinterpret_cast<const char*>(src) + sizeof(LengthType), klen);
         }
 
         if (value) {
-            char* vsrc = reinterpret_cast<char*>(src) + sizeof(LengthType) + klen;
-            LengthType vlen = *(reinterpret_cast<LengthType*>(vsrc));
-            value->assign(reinterpret_cast<char*>(vsrc) + sizeof(LengthType), vlen);
+            const char* vsrc = reinterpret_cast<const char*>(src) + sizeof(LengthType) + klen;
+            LengthType vlen = *(reinterpret_cast<const LengthType*>(vsrc));
+            value->assign(reinterpret_cast<const char*>(vsrc) + sizeof(LengthType), vlen);
         }
-    }
-
-    // PMNK is ignored when decoding string keys
-    static void decode(const PMNK_Type&, string* key, string* value, void* src)
-    {
-        decode(key, value, src);
     }
 };
 

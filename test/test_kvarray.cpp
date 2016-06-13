@@ -70,6 +70,56 @@ TEST(TestInsertions, MainTest)
     ASSERT_TRUE(kv.is_sorted());
 }
 
+TEST(TestDeletions, MainTest)
+{
+    KVArray<string, string, uint16_t> kv;
+    kv.insert("a", "value1");
+    kv.insert("b", "value2");
+    kv.insert("c", "value3");
+    kv.insert("d", "value4");
+    kv.insert("e", "value5");
+
+    ASSERT_TRUE(kv.find("a"));
+    ASSERT_TRUE(kv.find("b"));
+    ASSERT_TRUE(kv.find("c"));
+    ASSERT_TRUE(kv.find("d"));
+    ASSERT_TRUE(kv.find("e"));
+
+    // delete first
+    kv.remove("a");
+    ASSERT_TRUE(!kv.find("a"));
+    ASSERT_TRUE(kv.find("b"));
+    ASSERT_TRUE(kv.find("c"));
+    ASSERT_TRUE(kv.find("d"));
+    ASSERT_TRUE(kv.find("e"));
+
+    // delete last
+    kv.remove("e");
+    ASSERT_TRUE(!kv.find("a"));
+    ASSERT_TRUE(kv.find("b"));
+    ASSERT_TRUE(kv.find("c"));
+    ASSERT_TRUE(kv.find("d"));
+    ASSERT_TRUE(!kv.find("e"));
+
+    // delete middle
+    kv.remove("c");
+    ASSERT_TRUE(!kv.find("a"));
+    ASSERT_TRUE(kv.find("b"));
+    ASSERT_TRUE(!kv.find("c"));
+    ASSERT_TRUE(kv.find("d"));
+    ASSERT_TRUE(!kv.find("e"));
+
+    // delete remaining
+    kv.remove("b");
+    kv.remove("d");
+    ASSERT_TRUE(!kv.find("a"));
+    ASSERT_TRUE(!kv.find("b"));
+    ASSERT_TRUE(!kv.find("c"));
+    ASSERT_TRUE(!kv.find("d"));
+    ASSERT_TRUE(!kv.find("e"));
+
+}
+
 int main(int argc, char **argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
