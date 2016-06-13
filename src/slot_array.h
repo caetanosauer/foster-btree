@@ -63,7 +63,7 @@ namespace foster {
  * and the payloads are not interpreted in any way (for instance, the data structure does not keep
  * track of the payload length associated with each key). It does however provide basic memory
  * management, slot ordering, ghost bits, and key-payload association. For details of how
- * higher-level functionality is implemented based on this class, see ... TODO.
+ * higher-level functionality is implemented based on this class, see, e.g., kv_array.h.
  *
  * The template parameters allow the definition of different slot array layouts.
  * \tparam Key The type used for keys. Must be integral or floating-point, e.g., uint32_t or double.
@@ -208,14 +208,15 @@ public:
     bool allocate_payload(PayloadPtr& ptr, size_t length)
     {
         // We probably also want space for a new slot, so check it here
-        if (free_space() < sizeof(Slot) + length) { return false; }
+        size_t space_needed = get_payload_count(length) * Alignment;
+        if (free_space() < space_needed) { return false; }
         header_.payload_begin -= get_payload_count(length);
         ptr = header_.payload_begin;
         return true;
     }
 
     /**
-     * \brief Frees contiguous blocks occupied by a givne payload.
+     * \brief Frees contiguous blocks occupied by a given payload.
      * \param[in] ptr Internal pointer to first payload block to be freed.
      * \param[in] length Number of bytes to free (converted internally into number of blocks).
      */
@@ -225,18 +226,39 @@ public:
 
         // Move all payloads behind me forward, essentially deleting my blocks.
         size_t count = get_payload_count(length);
-        size_t shift = sizeof(PayloadBlock) * (ptr - header_.payload_begin);
-        memmove(&payloads_[header_.payload_begin + count], &payloads_[header_.payload_begin], shift);
+        size_t shift = ptr - header_.payload_begin;
+
+        // memmove(&payloads_[header_.payload_begin + count], &payloads_[header_.payload_begin], shift);
+        shift_payloads(header_.payload_begin + count, header_.payload_begin, shift);
+    }
+
+    bool shift_payloads(PayloadPtr to, PayloadPtr from, size_t count)
+    {
+        memmove(&payloads_[to], &payloads_[from], count * sizeof(PayloadBlock));
+
+        PayloadPtr first_affected = std::min(from, to);
+        PayloadPtr last_affected = std::max(from, to) + count - 1;
+        int shift = to - from;
+
+        // A negative shift implies growth of the payload area, which means we must have space.
+        if (shift < 0 && free_space() < sizeof(PayloadBlock) * (-shift)) {
+            return false;
+        }
 
         // Adjust pointers in the slot vector to account for the movement above.
         for (SlotNumber i = 0; i < slot_count(); i++) {
-            if (slots_[i].ptr < ptr + count) {
-                slots_[i].ptr += count;
+            if (slots_[i].ptr >= first_affected && slots_[i].ptr <= last_affected) {
+                slots_[i].ptr += shift;
             }
         }
 
+        // TODO assert there is space left if shift < 0
         // Finally, free space previously occupied by my blocks.
-        header_.payload_begin += count;
+        if (first_affected == header_.payload_begin) {
+            header_.payload_begin += shift;
+        }
+
+        return true;
     }
 
     /**
@@ -248,15 +270,10 @@ public:
      * \param[in] ptr Internal payload pointer.
      * \returns Pointer to the payload memory region (as void*)
      */
-    void* get_payload(PayloadPtr ptr)
-    {
-        return payloads_[ptr].data();
-    }
-
-    void* get_payload_for_slot(SlotNumber slot)
-    {
-        return get_payload(get_slot(slot).ptr);
-    }
+    void* get_payload(PayloadPtr ptr) { return payloads_[ptr].data(); }
+    const void* get_payload(PayloadPtr ptr) const { return payloads_[ptr].data(); }
+    void* get_payload_for_slot(SlotNumber slot) { return get_payload(get_slot(slot).ptr); }
+    const void* get_payload_for_slot(SlotNumber slot) const { return get_payload(get_slot(slot).ptr); }
 
     /**@}**/
 
