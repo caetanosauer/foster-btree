@@ -23,6 +23,7 @@
 
 #include <gtest/gtest.h>
 #include <cstring>
+#include <map>
 
 #include "slot_array.h"
 #include "encoding.h"
@@ -43,81 +44,123 @@ using KVArray = foster::KeyValueArray<K, V,
 >;
 
 
+template<class K, class V, class PMNK_Type>
+class KVArrayValidator
+{
+public:
+
+    void insert(const K& key, const V& value)
+    {
+        map_[key] = value;
+        kv_.insert(key, value);
+        validate();
+    }
+
+    void remove(const K& key)
+    {
+        map_.erase(key);
+        kv_.remove(key);
+        validate();
+    }
+
+    void validate()
+    {
+        EXPECT_EQ(kv_.size(), map_.size());
+
+        bool found;
+        V value;
+        for (auto e : map_) {
+            found = kv_.find(e.first, &value);
+            ASSERT_TRUE(found);
+            EXPECT_EQ(e.second, value);
+        }
+
+        EXPECT_TRUE(kv_.is_sorted());
+    }
+
+    KVArray<K, V, PMNK_Type>& get_kv() { return kv_; }
+    std::map<K, V>& get_map() { return map_; }
+
+private:
+
+    std::map<K, V> map_;
+    KVArray<K, V, PMNK_Type> kv_;
+};
+
 TEST(TestInsertions, MainTest)
 {
-    KVArray<string, string, uint16_t> kv;
+    KVArrayValidator<string, string, uint16_t> kv;
     kv.insert("hello", "world");
-    ASSERT_TRUE(kv.is_sorted());
     kv.insert("abc", "The quick brown fox jumps over the lazy dog!");
-    ASSERT_TRUE(kv.is_sorted());
     kv.insert("cde", "TXT");
-    ASSERT_TRUE(kv.is_sorted());
     kv.insert("Zero Dark Thirty is a movie that starts with Z", "OK");
-    ASSERT_TRUE(kv.is_sorted());
     kv.insert("empty value", "");
-    ASSERT_TRUE(kv.is_sorted());
     kv.insert("heyoh", "world");
-    ASSERT_TRUE(kv.is_sorted());
     kv.insert("hey", "world");
-    ASSERT_TRUE(kv.is_sorted());
     kv.insert("hallo", "welt");
-    ASSERT_TRUE(kv.is_sorted());
     kv.insert("Hallo", "Welt");
-    ASSERT_TRUE(kv.is_sorted());
     kv.insert("Hallo!", "Welt!");
-    ASSERT_TRUE(kv.is_sorted());
     kv.insert("hb", "world");
-    ASSERT_TRUE(kv.is_sorted());
 }
 
 TEST(TestDeletions, MainTest)
 {
-    KVArray<string, string, uint16_t> kv;
+    KVArrayValidator<string, string, uint16_t> kv;
     kv.insert("a", "value1");
     kv.insert("b", "value2");
     kv.insert("c", "value3");
     kv.insert("d", "value4");
     kv.insert("e", "value5");
 
-    ASSERT_TRUE(kv.find("a"));
-    ASSERT_TRUE(kv.find("b"));
-    ASSERT_TRUE(kv.find("c"));
-    ASSERT_TRUE(kv.find("d"));
-    ASSERT_TRUE(kv.find("e"));
-
     // delete first
     kv.remove("a");
-    ASSERT_TRUE(!kv.find("a"));
-    ASSERT_TRUE(kv.find("b"));
-    ASSERT_TRUE(kv.find("c"));
-    ASSERT_TRUE(kv.find("d"));
-    ASSERT_TRUE(kv.find("e"));
 
     // delete last
     kv.remove("e");
-    ASSERT_TRUE(!kv.find("a"));
-    ASSERT_TRUE(kv.find("b"));
-    ASSERT_TRUE(kv.find("c"));
-    ASSERT_TRUE(kv.find("d"));
-    ASSERT_TRUE(!kv.find("e"));
 
     // delete middle
     kv.remove("c");
-    ASSERT_TRUE(!kv.find("a"));
-    ASSERT_TRUE(kv.find("b"));
-    ASSERT_TRUE(!kv.find("c"));
-    ASSERT_TRUE(kv.find("d"));
-    ASSERT_TRUE(!kv.find("e"));
 
     // delete remaining
     kv.remove("b");
     kv.remove("d");
-    ASSERT_TRUE(!kv.find("a"));
-    ASSERT_TRUE(!kv.find("b"));
-    ASSERT_TRUE(!kv.find("c"));
-    ASSERT_TRUE(!kv.find("d"));
-    ASSERT_TRUE(!kv.find("e"));
+}
 
+TEST(TestMovement, MainTest)
+{
+    using namespace foster;
+
+    KVArrayValidator<string, string, uint16_t> kv;
+    kv.insert("a", "value1");
+    kv.insert("b", "value2");
+    kv.insert("c", "value3");
+    kv.insert("d", "value4");
+    kv.insert("e", "value5");
+
+    KVArrayValidator<string, string, uint16_t> kv2;
+
+    // move d and e
+    internal::move_kv_records(kv2.get_kv(), 0, kv.get_kv(), 3, 2);
+    kv.get_map().erase("d");
+    kv.get_map().erase("e");
+    kv.validate();
+    kv2.get_map()["d"] = "value4";
+    kv2.get_map()["e"] = "value5";
+    kv2.validate();
+
+    // move b
+    internal::move_kv_records(kv2.get_kv(), 0, kv.get_kv(), 1, 1);
+    kv.get_map().erase("b");
+    kv.validate();
+    kv2.get_map()["b"] = "value2";
+    kv2.validate();
+
+    // move a
+    internal::move_kv_records(kv2.get_kv(), 0, kv.get_kv(), 0, 1);
+    kv.get_map().erase("a");
+    kv.validate();
+    kv2.get_map()["a"] = "value1";
+    kv2.validate();
 }
 
 int main(int argc, char **argv)
