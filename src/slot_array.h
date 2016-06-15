@@ -241,6 +241,8 @@ public:
         int shift = to - from;
 
         // A negative shift implies growth of the payload area, which means we must have space.
+        assert<1>(last_affected >= header_.payload_begin,
+                "shift_payloads invoked on area outside payload boundaries");
         if (shift < 0 && free_space() < sizeof(PayloadBlock) * (-shift)) {
             return false;
         }
@@ -252,9 +254,8 @@ public:
             }
         }
 
-        // TODO assert there is space left if shift < 0
-        // Finally, free space previously occupied by my blocks.
-        if (first_affected == header_.payload_begin) {
+        // Adjust payload_begin if there was growth or shrinkage
+        if (first_affected < header_.payload_begin) {
             header_.payload_begin += shift;
         }
 
