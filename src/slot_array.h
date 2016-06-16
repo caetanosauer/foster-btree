@@ -241,8 +241,6 @@ public:
         int shift = to - from;
 
         // A negative shift implies growth of the payload area, which means we must have space.
-        assert<1>(last_affected >= header_.payload_begin,
-                "shift_payloads invoked on area outside payload boundaries");
         if (shift < 0 && free_space() < sizeof(PayloadBlock) * (-shift)) {
             return false;
         }
@@ -260,6 +258,14 @@ public:
         }
 
         return true;
+    }
+
+    /**
+     * \brief Returns position of first payload -- useful for calling shift_payloads()
+     */
+    PayloadPtr get_first_payload()
+    {
+        return header_.payload_begin;
     }
 
     /**

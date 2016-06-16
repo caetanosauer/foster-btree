@@ -159,7 +159,12 @@ public:
         // STEP 4: Adjust fence keys on foster child
         KeyType childs_foster_key;
         child->get_foster_key(&childs_foster_key);
-        child->update_fenster(&split_key, &high_key, &childs_foster_key, child->get_foster_child());
+        success = child->update_fenster(&split_key, &high_key, &childs_foster_key,
+                child->get_foster_child());
+        if (!success) { return false; }
+
+        assert<3>(this->is_consistent());
+        assert<3>(child->is_consistent());
 
         return true;
     }
@@ -222,9 +227,23 @@ public:
         return ret;
     }
 
-    bool is_low_key_infinity() { return get_fenster()->is_low_key_infinity(); }
-    bool is_high_key_infinity() { return get_fenster()->is_high_key_infinity(); }
-    bool is_foster_empty() { return get_fenster()->is_foster_empty(); }
+    bool is_consistent()
+    {
+        if (!this->is_sorted()) { return false; }
+
+        // TODO implement a KeyValueArray iterator
+        KeyType key;
+        for (SlotNumber i = 0; i < this->slot_count(); i++) {
+           RecordEncoder::decode(this->get_payload_for_slot(i), &key, nullptr, &this->get_slot(i).key);
+           if (!key_range_contains(key)) { return false; }
+        }
+
+        return true;
+    }
+
+    bool is_low_key_infinity() const { return get_fenster()->is_low_key_infinity(); }
+    bool is_high_key_infinity() const { return get_fenster()->is_high_key_infinity(); }
+    bool is_foster_empty() const { return get_fenster()->is_foster_empty(); }
 
 protected:
 
@@ -246,7 +265,8 @@ protected:
         PayloadPtr& ptr = header().fenster_ptr;
         if (new_length != current_length) {
             int diff = current_length - new_length;
-            bool shifted = this->shift_payloads(ptr + diff, ptr, current_length);
+            PayloadPtr first = this->get_first_payload();
+            bool shifted = this->shift_payloads(first + diff, first, ptr - first);
             if (!shifted) { return false; }
             ptr = ptr + diff;
         }
