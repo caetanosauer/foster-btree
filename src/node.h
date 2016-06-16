@@ -186,6 +186,17 @@ public:
         return false;
     }
 
+    bool key_range_contains(const KeyType& key) const
+    {
+        if (!fence_contains(key)) { return false; }
+        if (!is_foster_empty()) {
+            KeyType foster;
+            get_foster_key(&foster);
+            return key < foster;
+        }
+        return true;
+    }
+
     /*
      * Since this class is not supposed to have any member variables (so that the space it occupies
      * is exactly what the user specifies in TotalBytes), header data is stored in the payload
