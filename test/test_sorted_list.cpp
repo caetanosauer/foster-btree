@@ -38,26 +38,24 @@ constexpr size_t DftAlignment = 8;
 template<class PMNK_Type>
 using SArray = foster::SlotArray<PMNK_Type, DftArrayBytes, DftAlignment>;
 
-template<class K, class V, class PMNK_Type>
+template<class K, class V>
 using KVArray = foster::KeyValueArray<K, V,
-      SArray<PMNK_Type>,
-      foster::BinarySearch<SArray<PMNK_Type>>,
-      foster::DefaultEncoder<K, V, PMNK_Type>
+      SArray<uint16_t>,
+      foster::BinarySearch<SArray<uint16_t>>,
+      foster::DefaultEncoder<K, V, uint16_t>
 >;
-;
 
-template<class K, class V, class PMNK_Type>
-using BTNode = foster::BtreeNode<
-    unsigned,
+template<class K, class V>
+using BTNode = foster::BtreeNode<K, V,
+    KVArray,
     foster::PlainPtr,
-    KVArray<K, V, PMNK_Type>,
+    unsigned,
     foster::DefaultEncoder
 >;
 
-
 template<class K, class V, class PMNK_Type>
 using SortedList = foster::SortedList<
-    BTNode<K, V, PMNK_Type>
+    BTNode<K, V>
 >;
 
 
@@ -71,7 +69,7 @@ TEST(TestInsertions, MainTest)
         list.put("key" + std::to_string(i), "value" + std::to_string(i));
     }
 
-    list.print(std::cout);
+    // list.print(std::cout);
 
     for (int i = 0; i < max; i++) {
         string expected = "value" + std::to_string(i);

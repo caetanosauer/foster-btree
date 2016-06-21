@@ -51,30 +51,37 @@ namespace foster {
  * A note on the use of template arguments: TODO
  */
 template <
+    class K,
+    class V,
+    template <class,class> class KeyValueArray,
+    template <class> class Pointer,
     class IdType,
-    template <class> class PointerType,
-    class KeyValueArray,
     template <class,class,class> class Encoder
 >
-class BtreeNode : public KeyValueArray
+class BtreeNode : public KeyValueArray<K, V>
 {
 public:
 
-    using ThisType = BtreeNode<IdType, PointerType, KeyValueArray, Encoder>;
-    using NodePointer = PointerType<ThisType>;
+    using ThisType = BtreeNode<K, V, KeyValueArray, Pointer, IdType, Encoder>;
+    using NodePointer = Pointer<ThisType>;
+    using ParentType = BtreeNode<K, NodePointer, KeyValueArray, Pointer, IdType, Encoder>;
+    using ParentPointer = Pointer<ParentType>;
 
-    using KeyType = typename KeyValueArray::KeyType;
-    using ValueType = typename KeyValueArray::ValueType;
-    using PMNK_Type = typename KeyValueArray::PMNK_Type;
+    using KeyType = K;
+    using ValueType = V;
+    using PMNK_Type = typename KeyValueArray<K, V>::PMNK_Type;
     using RecordEncoder = Encoder<KeyType, ValueType, PMNK_Type>;
     using FenceKeyEncoder = Encoder<KeyType, KeyType, PMNK_Type>;
     using ChildPtrEncoder = Encoder<KeyType, NodePointer, PMNK_Type>;
-    using SlotNumber = typename KeyValueArray::SlotNumber;
-    using PayloadPtr = typename KeyValueArray::PayloadPtr;
+    using SlotNumber = typename KeyValueArray<K, V>::SlotNumber;
+    using PayloadPtr = typename KeyValueArray<K, V>::PayloadPtr;
     using FensterType = Fenster<KeyType, NodePointer>;
 
+    template <class T>
+    using PointerType = Pointer<T>;
+
     // Adding "0+" to get around bug in gcc versions < 4.9
-    struct alignas(0+KeyValueArray::Alignment) HeaderData
+    struct alignas(0+KeyValueArray<K, V>::Alignment) HeaderData
     {
         IdType id;
         PayloadPtr fenster_ptr;
@@ -82,8 +89,10 @@ public:
         HeaderData() : fenster_ptr(0) {}
     };
 
-    BtreeNode()
+    BtreeNode(IdType id = IdType{0})
     {
+        header().id = id;
+
         // Allocate payload for header (see header()) and initialize it
         PayloadPtr ptr;
         bool allocated = this->allocate_payload(ptr, sizeof(HeaderData));
@@ -99,9 +108,6 @@ public:
         assert<1>(allocated);
         header().fenster_ptr = ptr;
         new (this->get_payload(ptr)) FensterType {nullptr, nullptr, nullptr, NodePointer{nullptr}};
-
-        // TODO assign ID
-        header().id = IdType(0);
     }
 
     void add_foster_child(NodePointer child)

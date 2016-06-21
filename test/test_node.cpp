@@ -37,25 +37,25 @@ constexpr size_t DftAlignment = 8;
 template<class PMNK_Type>
 using SArray = foster::SlotArray<PMNK_Type, DftArrayBytes, DftAlignment>;
 
-template<class K, class V, class PMNK_Type>
+template<class K, class V>
 using KVArray = foster::KeyValueArray<K, V,
-      SArray<PMNK_Type>,
-      foster::BinarySearch<SArray<PMNK_Type>>,
-      foster::DefaultEncoder<K, V, PMNK_Type>
+      SArray<uint16_t>,
+      foster::BinarySearch<SArray<uint16_t>>,
+      foster::DefaultEncoder<K, V, uint16_t>
 >;
 
-template<class K, class V, class PMNK_Type>
-using BTNode = foster::BtreeNode<
-    unsigned,
+template<class K, class V>
+using BTNode = foster::BtreeNode<K, V,
+    KVArray,
     foster::PlainPtr,
-    KVArray<K, V, PMNK_Type>,
+    unsigned,
     foster::DefaultEncoder
 >;
 
 
 TEST(TestInsertions, MainTest)
 {
-    BTNode<string, string, uint16_t> node;
+    BTNode<string, string> node;
     ASSERT_TRUE(node.is_low_key_infinity());
     ASSERT_TRUE(node.is_high_key_infinity());
     node.insert("key", "value");
@@ -75,15 +75,15 @@ TEST(TestInsertions, MainTest)
 
 TEST(TestSplit, MainTest)
 {
-    using NodePointer = BTNode<string, string, uint16_t>::NodePointer;
+    using NodePointer = BTNode<string, string>::NodePointer;
 
-    BTNode<string, string, uint16_t> n1;
-    BTNode<string, string, uint16_t> n2;
-    BTNode<string, string, uint16_t> n3;
+    BTNode<string, string> n1;
+    BTNode<string, string> n2;
+    BTNode<string, string> n3;
     n1.add_foster_child(NodePointer(&n2));
     n1.add_foster_child(NodePointer(&n3));
 
-    BTNode<string, string, uint16_t> node;
+    BTNode<string, string> node;
     node.insert("key2", "value_2");
     node.insert("key0", "value__0");
     node.insert("key1", "value___1");
@@ -91,7 +91,7 @@ TEST(TestSplit, MainTest)
     node.insert("key4", "value_____4");
     node.insert("key5", "value______5");
 
-    BTNode<string, string, uint16_t> node2;
+    BTNode<string, string> node2;
 
     node.add_foster_child(NodePointer(&node2));
     ASSERT_TRUE(node.is_low_key_infinity());
@@ -113,11 +113,11 @@ TEST(TestSplit, MainTest)
     ASSERT_TRUE(node2.is_high_key_infinity());
 
     node2.insert("key6", "value_______6");
-    BTNode<string, string, uint16_t> node3;
+    BTNode<string, string> node3;
     node2.add_foster_child(NodePointer(&node3));
     node2.rebalance_foster_child();
 
-    BTNode<string, string, uint16_t> node4;
+    BTNode<string, string> node4;
     node2.add_foster_child(NodePointer(&node4));
     node2.rebalance_foster_child();
 }
