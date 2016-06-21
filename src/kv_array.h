@@ -202,12 +202,21 @@ protected:
                 if (slot >= this->slot_count()) { return false; }
                 found_pmnk = this->get_slot(slot).key;
             }
-            return false;
         }
-        else {
-            // slot will contain the position into which key would be inserted
-            return false;
+
+        // Key was not found; slot will contain the position into which key would be inserted and
+        // the value pointer, if a valid one is given, will contain whatever value was found in that
+        // slot -- provided that the array contains at least one slot. This is useful for traversal
+        // of branch nodes in a B-tree (\see BtreeLevel::traverse).
+        if (value && this->slot_count() > 0) {
+            assert<1>(slot <= this->slot_count());
+            // Slot contains a key value greater than or equal to the searched key. In the former
+            // case, we must return the value of the previous slot for correct traversal. The latter
+            // case cannot occur here, because we would have returned true above.
+            slot--;
+            Encoder::decode(this->get_payload_for_slot(slot), nullptr, value, nullptr);
         }
+        return false;
     }
 
     template<class T, class S>
