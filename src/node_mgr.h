@@ -19,53 +19,67 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef FOSTER_BTREE_POINTERS_H
-#define FOSTER_BTREE_POINTERS_H
+#ifndef FOSTER_BTREE_NODE_MGR_H
+#define FOSTER_BTREE_NODE_MGR_H
 
 /**
- * \file pointers.h
+ * \file node_mgr.h
  *
- * Defines handler classes that can be used as smart (or dumb) pointers to objects, similar to
- * shared_ptr and unique_ptr.
+ * Management of leaf and branch B-tree nodes
  */
+
+#include <memory> // for std::allocator
+#include <type_traits>
+#include <atomic>
 
 #include "assertions.h"
 
 namespace foster {
 
-template <class T>
-class PlainPtr {
+template <class IdType>
+class AtomicCounterIdGenerator
+{
 public:
-    explicit PlainPtr(T* p = nullptr) : ptr_(p) {}
+    using Type = IdType;
 
-    // PlainPtr(const PlainPtr& other) : ptr_(other.ptr_) {}
-
-    // PlainPtr& operator=(const PlainPtr& other)
-    // {
-    //     ptr_ = other.ptr_;
-    //     return *this;
-    // }
-
-    // PlainPtr(PlainPtr&& other) : ptr_(other.ptr_) { other.ptr_ = nullptr; }
-
-    // PlainPtr& operator=(PlainPtr&& other)
-    // {
-    //     ptr_ = std::move(other.ptr_);
-    //     return *this;
-    // }
-
-    operator bool() const { return ptr_; }
-    T* operator->() const { return ptr_; }
-    T& operator*() const { return *ptr_; }
-    bool operator!() const { return !ptr_; }
-    bool operator==(const PlainPtr& other) const { return other.ptr_ == ptr_; }
-
-    operator void*() { return ptr_; }
+    IdType generate() { return ++counter_; }
 
 private:
-    T* ptr_;
+    static std::atomic<IdType> counter_;
 };
 
-} // namespace foster
+template <class IdType>
+std::atomic<IdType> AtomicCounterIdGenerator<IdType>::counter_{IdType{0}};
+
+template <
+    class Node,
+    class IdGenerator,
+    class Allocator = std::allocator<Node>
+>
+class BtreeNodeManager
+{
+public:
+
+    using IdType = typename IdGenerator::Type;
+    using NodePointer = typename Node::NodePointer;
+    using KeyType = typename Node::KeyType;
+
+    NodePointer construct_node()
+    {
+        // allocate space for node and invoke constructor
+        void* addr = allocator_.allocate(1 /* number of nodes to allocate */);
+        IdType id = idgen_.generate();
+        return NodePointer {new (addr) Node(id)};
+    }
+
+protected:
+
+    Allocator allocator_;
+    IdGenerator idgen_;
+
+};
+
+
+} // namsepace foster
 
 #endif
