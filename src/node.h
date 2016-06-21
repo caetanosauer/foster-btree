@@ -55,24 +55,20 @@ template <
     class V,
     template <class,class> class KeyValueArray,
     template <class> class Pointer,
-    class IdType,
-    template <class,class,class> class Encoder
+    class IdType
 >
 class BtreeNode : public KeyValueArray<K, V>
 {
 public:
 
-    using ThisType = BtreeNode<K, V, KeyValueArray, Pointer, IdType, Encoder>;
+    using ThisType = BtreeNode<K, V, KeyValueArray, Pointer, IdType>;
     using NodePointer = Pointer<ThisType>;
-    using ParentType = BtreeNode<K, NodePointer, KeyValueArray, Pointer, IdType, Encoder>;
+    using ParentType = BtreeNode<K, NodePointer, KeyValueArray, Pointer, IdType>;
     using ParentPointer = Pointer<ParentType>;
 
     using KeyType = K;
     using ValueType = V;
-    using PMNK_Type = typename KeyValueArray<K, V>::PMNK_Type;
-    using RecordEncoder = Encoder<KeyType, ValueType, PMNK_Type>;
-    using FenceKeyEncoder = Encoder<KeyType, KeyType, PMNK_Type>;
-    using ChildPtrEncoder = Encoder<KeyType, NodePointer, PMNK_Type>;
+    using RecordEncoder = typename KeyValueArray<K,V>::EncoderType;
     using SlotNumber = typename KeyValueArray<K, V>::SlotNumber;
     using PayloadPtr = typename KeyValueArray<K, V>::PayloadPtr;
     using FensterType = Fenster<KeyType, NodePointer>;
@@ -252,22 +248,6 @@ public:
     NodePointer get_foster_child() const
     {
         return get_fenster()->get_foster_ptr();
-    }
-
-    NodePointer get_child(const SlotNumber& slot) const
-    {
-        // The decoder is optimized for the case where PMNK and the actual key are the same type. In
-        // that case, the key doesn't have to be encoded in the payload. Furthermore, since the
-        // value type is not string, it is encoded simply by copying the contents.
-        // However (TODO), if we check for these conditions here already, we might eliminate some
-        // overhead that a not-so-clever compiler would not optimize out. Since the checking is
-        // purely static, the code inside the if statement is generated at compile time and no
-        // checking overhead is incurred at runtime.
-        NodePointer ret;
-        ChildPtrEncoder::decode(this->get_payload_for_slot(slot), nullptr, &ret,
-                this->get_slot(slot).key);
-
-        return ret;
     }
 
     bool is_consistent()

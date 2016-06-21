@@ -48,8 +48,7 @@ template<class K, class V>
 using BTNode = foster::BtreeNode<K, V,
     KVArray,
     foster::PlainPtr,
-    unsigned,
-    foster::DefaultEncoder
+    unsigned
 >;
 
 
