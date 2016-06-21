@@ -173,14 +173,6 @@ private:
     static_assert(sizeof(payloads_) + sizeof(HeaderData) == ArrayBytes,
             "SlotArray takes more space than the given ArrayBytes");
 
-protected:
-
-    /** \brief Helper function to get number of payload blocks required to store 'length' bytes */
-    static size_t get_payload_count(size_t length)
-    {
-        return length / sizeof(PayloadBlock) + (length % sizeof(PayloadBlock) != 0);
-    }
-
 public:
 
     /** \brief Default constructor. No arguments required */
@@ -198,6 +190,12 @@ public:
      * @name Payload management methods
      */
     /**@{**/
+
+    /** \brief Helper function to get number of payload blocks required to store 'length' bytes */
+    static size_t get_payload_count(size_t length)
+    {
+        return length / sizeof(PayloadBlock) + (length % sizeof(PayloadBlock) != 0);
+    }
 
     /**
      * \brief Allocates contiguous payload blocks to store a given number of bytes.
@@ -228,7 +226,6 @@ public:
         size_t count = get_payload_count(length);
         size_t shift = ptr - header_.payload_begin;
 
-        // memmove(&payloads_[header_.payload_begin + count], &payloads_[header_.payload_begin], shift);
         shift_payloads(header_.payload_begin + count, header_.payload_begin, shift);
     }
 
@@ -253,7 +250,7 @@ public:
         }
 
         // Adjust payload_begin if there was growth or shrinkage
-        if (first_affected < header_.payload_begin) {
+        if (first_affected <= header_.payload_begin) {
             header_.payload_begin += shift;
         }
 

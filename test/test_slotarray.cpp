@@ -96,9 +96,15 @@ void sequential_deletions(T& slots, bool forward, int count = -1)
     SlotNumber i = 0;
     unsigned j = 0;
     while (true) {
+        size_t free_space = slots.free_space();
         slots.free_payload(slots[i].ptr, sizeof(data));
+        EXPECT_EQ(free_space + slots.get_payload_count(sizeof(data)) * sizeof(typename T::PayloadBlock),
+                slots.free_space());
+
+        free_space = slots.free_space();
         slots.delete_slot(i);
         EXPECT_EQ(initial_slot_count - (j + 1), slots.slot_count());
+        EXPECT_EQ(free_space + sizeof(typename T::Slot), slots.free_space());
 
         if (slots.slot_count() == 0) { break; }
         EXPECT_EQ(100 + j + 1, slots[i].key);
@@ -107,6 +113,7 @@ void sequential_deletions(T& slots, bool forward, int count = -1)
 
         if (one_record_space == 0) {
             one_record_space = slots.free_space() - initial_free_space;
+            EXPECT_TRUE(one_record_space >= sizeof(data) + sizeof(typename T::Slot));
         }
         else {
             EXPECT_TRUE(slots.free_space() == initial_free_space + (j+1) * one_record_space);
