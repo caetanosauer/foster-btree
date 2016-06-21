@@ -229,10 +229,19 @@ public:
         shift_payloads(header_.payload_begin + count, header_.payload_begin, shift);
     }
 
+    /**
+     * \brief Shifts payloads analogously to a memmove operation
+     * \param[in] to Payload blocks will be moved into this position
+     * \param[in} from ... from this position
+     * \param[in] count Number of blocks to move
+     * \returns If move goes beyond the free space area (which can only happen when to < from), false is
+     * returned. Otherwise, move succeeds and true is returned.
+     *
+     * If movement affects the amount of free space by relocating the first used payload, the amount
+     * of free space is adjusted accordingly by de- or incrementing payload_begin.
+     */
     bool shift_payloads(PayloadPtr to, PayloadPtr from, size_t count)
     {
-        memmove(&payloads_[to], &payloads_[from], count * sizeof(PayloadBlock));
-
         PayloadPtr first_affected = std::min(from, to);
         PayloadPtr last_affected = std::max(from, to) + count - 1;
         int shift = to - from;
@@ -241,6 +250,9 @@ public:
         if (shift < 0 && free_space() < sizeof(PayloadBlock) * (-shift)) {
             return false;
         }
+
+        // Perform the actual movement
+        memmove(&payloads_[to], &payloads_[from], count * sizeof(PayloadBlock));
 
         // Adjust pointers in the slot vector to account for the movement above.
         for (SlotNumber i = 0; i < slot_count(); i++) {
@@ -260,7 +272,7 @@ public:
     /**
      * \brief Returns position of first payload -- useful for calling shift_payloads()
      */
-    PayloadPtr get_first_payload()
+    PayloadPtr get_first_payload() const
     {
         return header_.payload_begin;
     }
@@ -330,7 +342,7 @@ public:
 
     /**@}**/
 
-    /** \brief Used temporarily for debugging (TODO remove it once we have better utilities) */
+    /** \brief Print method used for debugging */
     void print_info()
     {
         cout << "Key size = " << sizeof(Key) << " bytes" << endl;
