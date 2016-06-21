@@ -50,7 +50,7 @@ namespace internal {
  * and search functionality. Like the underlying slot array, it occupies a fixed amount of memory.
  * Using a given Encoder policy (passed as a template argument), arbitrary key-value pairs are
  * stored into the lower-level slot array. Using a given Search policy, key-value pairs are inserted
- * in the position the maintains order by key and search for a given key is supported.
+ * in the position that maintains order by key and search for a given key is supported.
  *
  * \tparam K Type of keys
  * \tparam V Type of values
@@ -69,6 +69,9 @@ class KeyValueArray : protected SlotArray
 {
 public:
 
+    /**
+     * Type aliases for convenience and allowing other classes to use this one's template arguments.
+     */
     using KeyType = K;
     using ValueType = V;
     using EncoderType = Encoder;
@@ -81,6 +84,7 @@ public:
 
     /**
      * \brief Insert a key-value pair into the array.
+     * \returns true if insertion succeeded (i.e., if there was enough free space)
      */
     bool insert(const K& key, const V& value)
     {
@@ -101,6 +105,11 @@ public:
 
     /**
      * \brief Insert a slot with the given key and reserve the given amount of payload.
+     *
+     * This method is a building block of the main insert method that does all steps of an insertion
+     * except for encoding the value into the reserved payload area.
+     *
+     * \returns true if insertion succeeded (i.e., if there was enough free space)
      */
     bool insert_key(const K& key, size_t payload_length, SlotNumber& slot)
     {
@@ -131,6 +140,7 @@ public:
 
     /**
      * \brief Removes a key-value pair from the array.
+     * \throws KeyNotFoundException if key does not exist in the array.
      */
     void remove(const K& key)
     {
@@ -141,7 +151,6 @@ public:
         }
 
         // 2. Free the payload and delete the slot.
-        // TODO: set ghost bit and implement support for ghost records (e.g., in Search)
         PayloadPtr payload = this->get_slot(slot).ptr;
         size_t payload_length = Encoder::get_payload_length(this->get_payload(payload));
         this->free_payload(payload, payload_length);
@@ -151,6 +160,7 @@ public:
 
     /**
      * \brief Searches for a given key in the array.
+     * \see find_slot
      */
     bool find(const K& key, V* value = nullptr)
     {
@@ -158,6 +168,7 @@ public:
         return find_slot(key, value, slot);
     }
 
+    /// \brief Number of key-value pairs currently present in the array.
     size_t size()
     {
         return this->slot_count();
@@ -173,7 +184,9 @@ protected:
      * long as the PMNK matches.
      *
      * \param[in] key Key for which to search.
-     * \param[in] value It not null, value data will be decoded into the pointed object.
+     * \param[in] value It not null, value data will be decoded into the pointed object. If key is
+     *      not found, value of the previous slot is decoded. This supports traversal through branch
+     *      nodes in a B-tree.
      * \param[out] slot If key is found in the array, its position; otherwise, the position on which
      *      the given key would be inserted.
      * \returns true if key was found in the array; false otherwise.
@@ -219,6 +232,13 @@ protected:
         return false;
     }
 
+    /*
+     * Friend declaration of the move_kv_records. It's currently implemented as an external friend
+     * function instead of a method just to achieve some separation and keep the class itself
+     * simple. The function is templated to support different array implementations. Think of this
+     * like the STL sort function, which works on arbitrary data structures and is a separate
+     * function.
+     */
     template<class T, class S>
     friend bool internal::move_kv_records(T&, S, T&, S, size_t);
 
@@ -268,6 +288,20 @@ public:
 
 namespace internal {
 
+/**
+ * \brief Function template to move key-value pairs between arrays.
+ *
+ * \param[in] dest Key-value array into which pairs will be moved.
+ * \param[in] dest_slot Slot position in which pairs will be inserted in the destination array.
+ * \param[in] src Source array from which pairs will be moved.
+ * \param[in] src_slot First slot to be moved in the source array.
+ * \param[in] slot_count Number of slots to move
+ * \returns true if movement succeeds; false otherwise
+ *
+ * One important aspect of this function is that the movement is atomic; i.e., if any of the
+ * individual movements fails (possibliy due to lack of free space on destination) then the whole
+ * movement is "rolled back" by reinserting the already-moved pairs into the source array.
+ */
 template <class KVArray, class SlotNumber = typename KVArray::SlotNumber>
 bool move_kv_records(
         KVArray& dest, SlotNumber dest_slot,
@@ -284,11 +318,14 @@ bool move_kv_records(
     bool success = true;
     SlotNumber i = src_slot, j = dest_slot;
 
-    // First copy slots from the other array into this one
+    // First copy slots from the source array into the destination one. If an insertion or payload
+    // allocation fails in the destination, we break out of the loop and success is set to false.
     while (i <= last_slot) {
+        // 1. Insert slot
         success = dest.insert_slot(j);
         if (!success) { break; }
 
+        // 2. Allocate payload
         void* payload_src = src.get_payload_for_slot(i);
         size_t length = Encoder::get_payload_length(payload_src);
 
@@ -299,6 +336,7 @@ bool move_kv_records(
             break;
         }
 
+        // 3. Copy slot and payload data into the reserved space.
         // TODO add Slot::init or reset or something like that
         dest.get_slot(j).key = src.get_slot(i).key;
         dest.get_slot(j).ptr = payload_dest_ptr;
@@ -310,7 +348,7 @@ bool move_kv_records(
         j++;
     }
 
-    // If copy failed in the middle, we need to remove the entries that were already copied
+    // If copy failed above, we need to roll back by removing the entries that were already copied
     if (!success) {
         while (j > dest_slot) {
             j--;
@@ -319,7 +357,7 @@ bool move_kv_records(
             dest.delete_slot(j);
         }
     }
-    // Otherwise, we must delete the copied slots on the source array
+    // Otherwise, we delete the copied slots on the source array, thus completing the move operation
     else {
         assert<1>(i == last_slot + 1);
         while (i > src_slot) {
