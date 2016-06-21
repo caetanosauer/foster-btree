@@ -60,12 +60,12 @@ public:
 
     static size_t compute_size(Key*, Key*, Key*)
     {
-        return sizeof(Key) * 3 + sizeof(PointerType);
+        return sizeof(Fenster<Key, PointerType>);
     }
 
     size_t get_size() const
     {
-        return sizeof(Key) * 3 + sizeof(PointerType);
+        return sizeof(Fenster<Key, PointerType>);
     }
 
     size_t get_prefix_size() const { return 0; }
