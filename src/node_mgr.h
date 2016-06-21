@@ -42,14 +42,16 @@ class AtomicCounterIdGenerator
 public:
     using Type = IdType;
 
-    IdType generate() { return ++counter_; }
-
-private:
-    static std::atomic<IdType> counter_;
+    IdType generate()
+    {
+        // Counter is a local static variable instead of a static member because then it does not
+        // have to be defined in a translation unit (i.e., cpp file). This is the only way to
+        // guarantee that only one counter will be used, no matter how many units include this
+        // header.
+        static std::atomic<IdType> counter{0};
+        return ++counter;
+    }
 };
-
-template <class IdType>
-std::atomic<IdType> AtomicCounterIdGenerator<IdType>::counter_{IdType{0}};
 
 template <
     class Node,
