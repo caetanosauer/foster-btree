@@ -78,20 +78,8 @@ public:
 
         while (!inserted) {
             // Node is full -- split required
-            // STEP 1: Add a new empty foster child
             NodePointer new_node = allocate_node();
-            node->add_foster_child(new_node);
-            assert<3>(node->is_sorted());
-
-            // STEP 2: Move records into the new foster child using rebalance operation
-            bool rebalanced = node->rebalance_foster_child();
-            assert<0>(rebalanced, "Could not rebalance records into new foster child");
-
-            // STEP 3: Decide if insertion should go into old or new node and retry
-            if (!node->key_range_contains(key)) {
-                node = new_node;
-                assert<1>(node->fence_contains(key));
-            }
+            node = node->split_for_insertion(key, new_node);
             inserted = node->insert(key, value);
         }
     }

@@ -138,6 +138,15 @@ public:
         assert<1>(success, "No space left to add foster child");
     }
 
+    void unlink_foster_child()
+    {
+        if (!get_foster_child()) { return; }
+        KeyType low_key, high_key;
+        get_fence_keys(&low_key, &high_key);
+        bool success = update_fenster(&low_key, &high_key, nullptr, NodePointer{nullptr});
+        assert<1>(success && !get_foster_child(), "Unable to unlink foster child");
+    }
+
     bool rebalance_foster_child()
     {
         // TODO support different policies for picking the split key
@@ -173,6 +182,23 @@ public:
         assert<3>(child->is_consistent());
 
         return true;
+    }
+
+    NodePointer split_for_insertion(const KeyType& key, NodePointer new_node)
+    {
+        // STEP 1: Add a new empty foster child
+        add_foster_child(new_node);
+
+        // STEP 2: Move records into the new foster child using rebalance operation
+        bool rebalanced = rebalance_foster_child();
+        assert<0>(rebalanced, "Could not rebalance records into new foster child");
+
+        // STEP 3: Decide if insertion should go into old or new node and return it
+        if (!key_range_contains(key)) {
+            assert<1>(new_node->key_range_contains(key));
+            return new_node;
+        }
+        else { return NodePointer{this}; }
     }
 
     bool fence_contains(const KeyType& key) const
