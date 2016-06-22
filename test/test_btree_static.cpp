@@ -181,7 +181,7 @@ TEST(IntegerKeyTest, TestManyInsertions)
     std::cout << "[map] Keys inserted: " << max << ". Runtime in us: " << elapsed.count() << std::endl;
     std::cout << "[map] Keys inserted per us: " << (float) elapsed.count() / max << std::endl;
 
-    // list.print(std::cout);
+    // tree.print(std::cout);
 
     for (int i = 0; i < max; i++) {
         int delivered;

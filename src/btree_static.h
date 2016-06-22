@@ -29,6 +29,7 @@
  */
 
 #include <memory>
+#include <iostream> // for print
 
 #include "assertions.h"
 
@@ -72,6 +73,11 @@ public:
     {
         LeafPointer node = root_level_->traverse(root_, key);
         return node->find(key, &value);
+    }
+
+    void print(std::ostream& out)
+    {
+        root_level_->print(root_, out);
     }
 
 private:

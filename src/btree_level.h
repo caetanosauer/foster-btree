@@ -30,6 +30,7 @@
 
 #include <memory>
 #include <limits>
+#include <iostream> // for print
 
 #include "metaprog.h"
 #include "assertions.h"
@@ -155,6 +156,31 @@ public:
         return node;
     }
 
+    void print(NodePointer node, std::ostream& out, unsigned rootLevel = Level)
+    {
+        // Print indentation
+        for (int i = 0; i < rootLevel - Level; i++) {
+            out << "    ";
+        }
+        out << "Node " << node->id() << " with " << node->size() << " items" << std::endl;
+
+        NodePointer foster_child = node->get_foster_child();
+        while (foster_child) {
+            for (int i = 0; i < rootLevel - Level; i++) {
+                out << "    ";
+            }
+            out << "Foster child " << foster_child->id() << " with " << foster_child->size()
+                << " items" << std::endl;
+            foster_child = foster_child->get_foster_child();
+        }
+
+        typename ThisNodeType::Iterator iter = node->iterate();
+        ChildPointer child;
+        while (iter.next(nullptr, &child)) {
+            next_level_->print(child, out, rootLevel);
+        }
+    }
+
 private:
 
     std::unique_ptr<LowerLevel> next_level_;
@@ -199,6 +225,24 @@ public:
     NodePointer construct_recursively()
     {
         return construct_node();
+    }
+    void print(NodePointer node, std::ostream& out, unsigned rootLevel = 0)
+    {
+        // Print indentation
+        for (int i = 0; i < rootLevel; i++) {
+            out << "    ";
+        }
+        out << "Leaf node " << node->id() << " with " << node->size() << " items" << std::endl;
+
+        NodePointer foster_child = node->get_foster_child();
+        while (foster_child) {
+            for (int i = 0; i < rootLevel; i++) {
+                out << "    ";
+            }
+            out << "Foster child " << foster_child->id() << " with " << foster_child->size()
+                << " items" << std::endl;
+            foster_child = foster_child->get_foster_child();
+        }
     }
 
 private:

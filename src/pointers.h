@@ -62,6 +62,11 @@ public:
 
     operator void*() { return ptr_; }
 
+    friend std::ostream& operator<< (std::ostream& out, const PlainPtr<T>& ptr)
+    {
+        return out << ptr.ptr_;
+    }
+
 private:
     T* ptr_;
 };

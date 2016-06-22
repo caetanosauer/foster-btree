@@ -174,6 +174,34 @@ public:
         return this->slot_count();
     }
 
+    class Iterator
+    {
+    public:
+        Iterator(ThisType* kv) :
+            current_slot_{0}, kv_{kv}
+        {}
+
+        bool next(K* key, V* value)
+        {
+            if (current_slot_ >= kv_->size()) { return false; }
+
+            typename SlotArray::Slot& slot = kv_->get_slot(current_slot_);
+            Encoder::decode(kv_->get_payload(slot.ptr), key, value, &slot.key);
+            current_slot_++;
+
+            return true;
+        }
+
+    private:
+        SlotNumber current_slot_;
+        ThisType* kv_;
+    };
+
+    Iterator iterate()
+    {
+        return Iterator{this};
+    }
+
 protected:
 
     /**
