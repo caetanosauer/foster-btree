@@ -89,7 +89,7 @@ public:
     bool insert(const K& key, const V& value)
     {
         // 1. Insert key and allocate empty payload space for the pair
-        SlotNumber slot;
+        SlotNumber slot {0};
         size_t payload_length = Encoder::get_payload_length(key, value);
         if (!insert_key(key, payload_length, slot)) {
             return false;
@@ -165,7 +165,7 @@ public:
      */
     bool find(const K& key, V* value = nullptr)
     {
-        SlotNumber slot;
+        SlotNumber slot {0};
         return find_slot(key, value, slot);
     }
 
