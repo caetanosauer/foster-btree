@@ -36,6 +36,9 @@
 
 namespace foster {
 
+/**
+ * \brief Node ID generator that uses a single, program-wide atomic counter.
+ */
 template <class IdType>
 class AtomicCounterIdGenerator
 {
@@ -53,6 +56,13 @@ public:
     }
 };
 
+/**
+ * \brief A manager class for nodes, handling allocation, construction, and ID assignment.
+ *
+ * \tparam Node The node class being constructed.
+ * \tparam IdGenerator Class used to generate IDs.
+ * \tparam Allocator Class used to allocate and free memory for nodes.
+ */
 template <
     class Node,
     class IdGenerator,
@@ -66,6 +76,9 @@ public:
     using NodePointer = typename Node::NodePointer;
     using KeyType = typename Node::KeyType;
 
+    /*
+     * \brief Allocate and construct an empty node.
+     */
     NodePointer construct_node()
     {
         // allocate space for node and invoke constructor
@@ -74,11 +87,12 @@ public:
         return NodePointer {new (addr) Node(id)};
     }
 
+    // TODO implement destroy_node method
+
 protected:
 
     Allocator allocator_;
     IdGenerator idgen_;
-
 };
 
 

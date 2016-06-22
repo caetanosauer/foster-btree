@@ -35,6 +35,18 @@
 
 namespace foster {
 
+/**
+ * \brief Ordered map data structure that stores key-value pairs in a chain of nodes.
+ *
+ * Key-value pairs are stored in nodes linked by foster relationships. Its organization is a hybrid
+ * between a C++ vector and a list, as elements are stored contiguously within nodes that are
+ * linked. Since the list is kept ordered, insertion, deletion, and lookup all require a traversal,
+ * which is linear in the number of nodes. After a traversal, a logarithmic search is performed
+ * within a node.
+ *
+ * \tparam Node The node class to use.
+ * \tparam Allocator The allocator used to manage memory for nodes.
+ */
 template <
     class Node,
     class Allocator = std::allocator<Node>
@@ -46,6 +58,10 @@ public:
     using KeyType = typename Node::KeyType;
     using ValueType = typename Node::ValueType;
 
+    /**
+     * \brief Constructs an empty list, with a single empty node.
+     * \oaram[in] allocator Allocator object used to allocate and free nodes
+     */
     SortedList(const Allocator& allocator = Allocator{})
         : allocator_(allocator)
     {
@@ -57,6 +73,9 @@ public:
         // TODO: destroy all nodes in the linked list
     }
 
+    /**
+     * \brief Traversal method: finds node whose key range contains the given key
+     */
     NodePointer traverse(const KeyType& key) const
     {
         NodePointer p = head_;
@@ -69,8 +88,9 @@ public:
         return p;
     }
 
-    // TODO: this method is generic enough to be moved out of this class (it works for other data
-    // structures such as B-tree)
+    /**
+     * \brief Insert new key-value pair, splitting the target node if necessary.
+     */
     void put(const KeyType& key, const ValueType& value)
     {
         NodePointer node = traverse(key);
@@ -84,12 +104,16 @@ public:
         }
     }
 
+    /**
+     * \brief Retrieve a value given its associated key.
+     */
     bool get(const KeyType& key, ValueType& value)
     {
         NodePointer node = traverse(key);
         return node->find(key, &value);
     }
 
+    /// Print method for debugging and testing
     void print(std::ostream& out)
     {
         NodePointer p = head_;
@@ -101,16 +125,22 @@ public:
     }
 
 protected:
+
+    /// \brief Pointer to the head node, i.e., the first node in the linked list.
     NodePointer head_;
 
+    /// \brief Allocator object used to allocate memory for new nodes.
     Allocator allocator_;
 
+    /// \brief: Allocate and construct a new node to be added to the linked list.
     NodePointer allocate_node()
     {
         // allocate space for node and invoke constructor
         void* addr = allocator_.allocate(1 /* number of nodes to allocate */);
         return NodePointer(new (addr) Node());
     }
+
+    // TODO implement destroy_node
 
 };
 

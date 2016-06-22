@@ -25,7 +25,7 @@
 /**
  * \file btree_level.h
  *
- * Btree logic built on top of a node data structure with support for foster relationships.
+ * Types and utilities used to represent a single level in a B-tree data structure.
  */
 
 #include <memory>
@@ -54,6 +54,20 @@ template <> string GetMinimumKeyValue() { return ""; }
 
 } // namespace internal
 
+/**
+ * \brief Type function to yield the type of nodes of a given level.
+ *
+ * The types for all levels are derived from the leaf node type, which is given as a template
+ * parameter. The other levels are then determined recursively, which is possible because the type
+ * of a parent node is the same as its children, except that the value type is a pointer to the
+ * child node. The type of the parent is available in Node::ParentType, which easily allows the
+ * recursive computation.
+ *
+ * For level 0, the LeafType is returned, and this is done with the template specialization below.
+ *
+ * \tparam L Level for which we want the node type.
+ * \tparam LeafType Type of the leaf node.
+ */
 template <unsigned L, class LeafType>
 struct LeveledNode {
     using type = typename LeveledNode<L-1, LeafType>::type::ParentType;
@@ -64,6 +78,35 @@ struct LeveledNode<0, LeafType> {
     using type = LeafType;
 };
 
+/**
+ * \brief Class that represents a level of a B-tree data structure.
+ *
+ * The leaf nodes are at level 0, and the number is incremented for each level towards the root.
+ * Foster children are considered of the same level as their foster parents.
+ *
+ * Because we use a strictly statically typed approach in our design (using templates and
+ * metaprogramming), this has the implication that each level of a B-tree contains nodes of a
+ * different type. Nodes of level L differ from those of level L-1 in which they contain pointers to
+ * nodes of level L-1 instead of pointers to nodes of level L-2 or actual data records (for level
+ * 0). This makes it more cumbersome to work with nodes than if we used a dynamic polymorphism
+ * approach (i.e., derived classes and virtual methods), but this static style of programming has
+ * other advantages (see our documentation in the `doc` directory for a discussion on this). Also
+ * \see StaticBtree in btree_static.h.
+ *
+ * A BtreeLevel object is responsible for managing nodes of a given level through its own NodeMgr.
+ * However, it does not hold any node per se -- it can be seen rather as a helper class for managing
+ * and performing operations on nodes of the same level.  It supports traversal by maintaining a
+ * linked list of level objects from the root down to the leaf level. Such level-dependent traversal
+ * logic is required because, again, the node types involved are different on each level.
+ *
+ * \tparam K The key type.
+ * \tparam V The value type
+ * \tparam Level Level number.
+ * \tparam LeadNode Template for the leaf node class. Upper-level node types are determined
+ *      recursively from this.
+ *  \tparam NodeMgr Template for the node manager object, used to construct and destroy nodes of
+ *      this level.
+ */
 template <
     class K,
     class V,
@@ -76,15 +119,14 @@ class BtreeLevel
 {
 public:
 
+    // Type aliases for convenience and external access
     using LeafNodeType = LeafNode<K, V>;
     using ThisNodeType = typename LeveledNode<Level, LeafNodeType>::type;
     using NodePointer = typename ThisNodeType::NodePointer;
     using ChildPointer = typename LeveledNode<Level-1, LeafNodeType>::type::NodePointer;
     using LeafPointer = typename LeveledNode<0, LeafNodeType>::type::NodePointer;
-
     using ThisType = BtreeLevel<K, V, Level, LeafNode, AdoptionPolicy, NodeMgr>;
     using LowerLevel = BtreeLevel<K, V, Level-1, LeafNode, AdoptionPolicy, NodeMgr>;
-
     using Adoption = AdoptionPolicy<NodePointer, ChildPointer>;
     using IdType = typename NodeMgr<LeafNodeType>::IdType;
 
