@@ -98,6 +98,7 @@ public:
         // 2. Encode (or serialize) the key-value pair into the payload.
         void* payload_addr = this->get_payload_for_slot(slot);
         Encoder::encode(key, value, payload_addr);
+        // TODO in a profile run with debug level 0, the call below is still registered!
         assert<3>(is_sorted());
 
         return true;
@@ -340,7 +341,7 @@ bool move_kv_records(
     using PayloadPtr = typename KVArray::PayloadPtr;
 
     SlotNumber last_slot = src_slot + slot_count - 1;
-    assert<0>(last_slot < src.slot_count());
+    assert<1>(last_slot < src.slot_count());
     assert<1>(src.is_sorted());
 
     bool success = true;

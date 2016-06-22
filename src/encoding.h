@@ -234,7 +234,7 @@ public:
                 char_src += sizeof(K);
             }
             else {
-                assert<0>(pmnk, "PMNK required to decode this key");
+                assert<1>(pmnk, "PMNK required to decode this key");
                 *key = *pmnk;
             }
         }
@@ -294,7 +294,7 @@ public:
                 memcpy(key, src, sizeof(K));
             }
             else {
-                assert<0>(pmnk, "PMNK required to decode this key");
+                assert<1>(pmnk, "PMNK required to decode this key");
                 *key = *pmnk;
             }
         }
@@ -362,7 +362,7 @@ public:
                 memcpy(value, char_src, sizeof(V));
             }
             else {
-                assert<0>(pmnk, "PMNK required to decode this value");
+                assert<1>(pmnk, "PMNK required to decode this value");
                 *key = *pmnk;
             }
         }

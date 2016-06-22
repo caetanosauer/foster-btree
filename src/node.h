@@ -273,7 +273,7 @@ public:
 
         // STEP 2: Move records into the new foster child using rebalance operation
         bool rebalanced = rebalance_foster_child();
-        assert<0>(rebalanced, "Could not rebalance records into new foster child");
+        assert<1>(rebalanced, "Could not rebalance records into new foster child");
 
         // STEP 3: Decide if insertion should go into old or new node and return it
         if (!key_range_contains(key)) {
