@@ -107,6 +107,27 @@ TEST(TestInsertions, SimpleInsertionsWithoutPMNK)
     ASSERT_EQ(v, 0);
 }
 
+TEST(TestInsertions, SimpleInsertionsWithoutPMNKStringValue)
+{
+    BTNodeNoPMNK<int,string> node;
+    ASSERT_TRUE(node.is_low_key_infinity());
+    ASSERT_TRUE(node.is_high_key_infinity());
+    node.insert(2, "200");
+    node.insert(0, "00");
+    node.insert(1, "10");
+    node.insert(3, "3000");
+    node.insert(4, "40000");
+    node.insert(5, "500000");
+    ASSERT_TRUE(node.is_sorted());
+
+    // node.print(std::cout);
+
+    string v;
+    bool found = node.find(3, &v);
+    ASSERT_TRUE(found);
+    ASSERT_EQ(v, "3000");
+}
+
 TEST(TestSplit, SimpleSplit)
 {
     using NodePointer = BTNode<string, string>::NodePointer;

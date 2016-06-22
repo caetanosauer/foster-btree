@@ -280,18 +280,23 @@ public:
 
     static void encode(const K& key, const string& value, void* dest)
     {
+        char* char_dest = reinterpret_cast<char*>(dest);
         if (!std::is_same<K, PMNK_Type>::value) {
-            memcpy(dest, &key, sizeof(K));
+            memcpy(char_dest, &key, sizeof(K));
+            char_dest += sizeof(K);
         }
-        *(reinterpret_cast<LengthType*>(dest)) = value.length();
-        memcpy(dest, value.data(), value.length());
+        *(reinterpret_cast<LengthType*>(char_dest)) = value.length();
+        char_dest += sizeof(LengthType);
+        memcpy(char_dest, value.data(), value.length());
     }
 
     static void decode(const void* src, K* key, string* value = nullptr, PMNK_Type* pmnk = nullptr)
     {
+        const char* char_src = reinterpret_cast<const char*>(src);
         if (key) {
             if (!std::is_same<K, PMNK_Type>::value) {
-                memcpy(key, src, sizeof(K));
+                memcpy(key, char_src, sizeof(K));
+                char_src += sizeof(K);
             }
             else {
                 assert<1>(pmnk, "PMNK required to decode this key");
@@ -300,8 +305,8 @@ public:
         }
 
         if (value) {
-            LengthType length = *(reinterpret_cast<const LengthType*>(src));
-            value->assign(reinterpret_cast<const char*>(src) + sizeof(LengthType), length);
+            LengthType length = *(reinterpret_cast<const LengthType*>(char_src));
+            value->assign(char_src + sizeof(LengthType), length);
         }
     }
 };
