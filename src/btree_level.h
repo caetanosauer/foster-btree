@@ -158,6 +158,7 @@ public:
             // pointer) associated with the slot where the key would be inserted if not found. The
             // return value (a Boolean "found") can be safely ignored.
             branch->find(key, &child);
+            assert<1>(child);
 
             // Try do adopt child's foster child -- restart traversal if it works
             if (Adoption::try_adopt(branch, child, node_mgr_)) {
@@ -168,6 +169,7 @@ public:
         }
 
         // Now we found the target child node, but key may be somewhere in the foster chain
+        assert<1>(child->fence_contains(key));
         while (child && !child->key_range_contains(key)) {
             child = child->get_foster_child();
         }

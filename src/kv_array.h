@@ -236,12 +236,12 @@ protected:
                 }
                 else if (found_key > key) {
                     // Already passed the searched key
-                    return false;
+                    break;
                 }
 
                 // Not a match. Try next slot, which might have the same pmnk.
                 slot++;
-                if (slot >= this->slot_count()) { return false; }
+                if (slot >= this->slot_count()) { break; }
                 found_pmnk = this->get_slot(slot).key;
             }
         }

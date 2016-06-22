@@ -49,6 +49,8 @@ struct EagerAdoption
     {
         using KeyType = typename NodeMgr::KeyType;
 
+        if (!child) { return false; }
+
         ChildNodePointer foster = child->get_foster_child();
         if (!foster) { return false; }
 
