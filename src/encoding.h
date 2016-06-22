@@ -158,6 +158,110 @@ struct PoormanPrefixing<string, PMNK_Type>
     }
 };
 
+template <class T>
+class DummyEncoder
+{
+public:
+    using Type = T;
+
+    /** \brief Returns encoded length of a decoded value */
+    static size_t get_payload_length(const T&) { return 0; }
+
+    /** \brief Returns length of an encoded value */
+    static size_t get_payload_length(void*) { return 0; }
+
+    /** \brief Dummy encoding == do nothing */
+    static char* encode(const T&, char* p) { return p; }
+
+    /** \brief Dummy decoding == do nothing */
+    static const char* decode(const char* p, T*) { return p; }
+};
+
+template <class T>
+class AssignmentEncoder
+{
+public:
+    using Type = T;
+
+    /** \brief Returns encoded length of a decoded value */
+    static size_t get_payload_length(const T&) { return sizeof(T); }
+
+    /** \brief Returns length of an encoded value */
+    static size_t get_payload_length(void*) { return sizeof(T); }
+
+    /** \brief Encodes a given value into a given address using the assignment operator */
+    static char* encode(const T& value, char* dest)
+    {
+        T* value_p = reinterpret_cast<T*>(dest);
+        *value_p = value;
+        return dest + sizeof(T);
+    }
+
+    /**
+     * \brief Decodes a given memory area into a key-value pair
+     *
+     * A key or value argument given as a nullptr is not decoded. If both are nullptr, the function
+     * does nothing.
+     */
+    static const char* decode(const char* src, T* value_p)
+    {
+        const T* value_src = reinterpret_cast<const T*>(src);
+        if (value_p) {
+            *value_p = *value_src;
+        }
+        return src + sizeof(T);
+    }
+};
+
+template <class T>
+class VariableLengthEncoder;
+
+template <>
+class VariableLengthEncoder<string>
+{
+public:
+
+    using Type = string;
+    using LengthType = uint16_t;
+
+    /** \brief Returns encoded length of a decoded value */
+    static size_t get_payload_length(const string& value)
+    {
+        return sizeof(LengthType) + value.length();
+    }
+
+    /** \brief Returns length of an encoded value */
+    static size_t get_payload_length(void* ptr)
+    {
+        return *(reinterpret_cast<LengthType*>(ptr)) + sizeof(LengthType);
+    }
+
+    /** \brief Encodes a string using a length field followed by the contents */
+    static char* encode(const string& value, char* dest)
+    {
+        *(reinterpret_cast<LengthType*>(dest)) = value.length();
+        dest += sizeof(LengthType);
+        memcpy(dest, value.data(), value.length());
+        dest += value.length();
+        return dest;
+    }
+
+    /**
+     * \brief Decodes a given memory area into a key-value pair
+     *
+     * A key or value argument given as a nullptr is not decoded. If both are nullptr, the function
+     * does nothing.
+     */
+    static const char* decode(const char* src, string* value_p)
+    {
+        LengthType length = *(reinterpret_cast<const LengthType*>(src));
+        if (value_p) {
+            value_p->assign(src + sizeof(LengthType), length);
+        }
+        return src + sizeof(LengthType) + length;
+    }
+};
+
 /**
  * \brief Base class of all encoders which use a common PMNK extraction mechanism.
  */
@@ -182,6 +286,82 @@ public:
     }
 };
 
+template <class KeyEncoder, class ValueEncoder,
+         class PMNK_Type = typename KeyEncoder::Type>
+class CompoundEncoder : public PMNKEncoder<typename KeyEncoder::Type, PMNK_Type>
+{
+    using K = typename KeyEncoder::Type;
+    using V = typename ValueEncoder::Type;
+
+    using ActualKeyEncoder = typename std::conditional<std::is_same<K, PMNK_Type>::value,
+        DummyEncoder<K>, KeyEncoder>::type;
+
+public:
+
+    /** \brief Returns encoded length of a key-value pair */
+    static size_t get_payload_length(const K& key, const V& value)
+    {
+        return ActualKeyEncoder::get_payload_length(key) + ValueEncoder::get_payload_length(value);
+    }
+
+    /** \brief Returns length of an encoded payload */
+    static size_t get_payload_length(void* addr)
+    {
+        size_t ksize = ActualKeyEncoder::get_payload_length(addr);
+        char* p = reinterpret_cast<char*>(addr) + ksize;
+        size_t vsize = ValueEncoder::get_payload_length(p);
+        return ksize + vsize;
+    }
+
+    /** \breif Encodes a given key-value pair into a given memory area */
+    static void encode(const K& key, const V& value, void* dest)
+    {
+        char* p = reinterpret_cast<char*>(dest);
+        p = ActualKeyEncoder::encode(key, p);
+        ValueEncoder::encode(value, p);
+    }
+
+    /**
+     * \brief Decodes a given memory area into a key-value pair
+     *
+     * A key or value argument given as a nullptr is not decoded. If both are nullptr, the function
+     * does nothing.
+     */
+    static void decode(const void* src, K* key, V* value = nullptr, PMNK_Type* pmnk = nullptr)
+    {
+        const char* p = reinterpret_cast<const char*>(src);
+        p = ActualKeyEncoder::decode(p, key);
+        ValueEncoder::decode(p, value);
+
+        // If we are not encoding key explicitly, but just reusing PMNK, we assign it here
+        if (key && std::is_same<K, PMNK_Type>::value) {
+            assert<1>(pmnk, "PMNK required to decode this key");
+            *key = *pmnk;
+        }
+    }
+};
+
+template <class K, class V, class PMNK_Type = K>
+class DefaultEncoder :
+    public CompoundEncoder<AssignmentEncoder<K>, AssignmentEncoder<V>, PMNK_Type>
+{};
+
+template <class K, class PMNK_Type>
+class DefaultEncoder<K, string, PMNK_Type> :
+    public CompoundEncoder<AssignmentEncoder<K>, VariableLengthEncoder<string>, PMNK_Type>
+{};
+
+template <class V, class PMNK_Type>
+class DefaultEncoder<string, V, PMNK_Type> :
+    public CompoundEncoder<VariableLengthEncoder<string>, AssignmentEncoder<V>, PMNK_Type>
+{};
+
+template <class PMNK_Type>
+class DefaultEncoder<string, string, PMNK_Type> :
+    public CompoundEncoder<VariableLengthEncoder<string>, VariableLengthEncoder<string>, PMNK_Type>
+{};
+
+#if 0
 /**
  * \brief Basic encoder used for fixed-length key-value pairs.
  *
@@ -434,6 +614,7 @@ public:
         }
     }
 };
+#endif
 
 
 } // namespace foster
