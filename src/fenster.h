@@ -76,12 +76,15 @@ public:
 
         Key empty_key = Key{0};
         if (!low) { low = &empty_key; is_low_key_infinity_ = true; }
-        if (!high) { high = &empty_key; is_low_key_infinity_ = true; }
+        if (!high) { high = &empty_key; is_high_key_infinity_ = true; }
         if (!foster) { foster = &empty_key; is_foster_empty_ = true; }
 
         low_fence = *low;
         high_fence = *high;
         foster_key = *foster;
+
+        // Not having a foster child must imply is_foster_empty
+        assert<1>(foster_ptr || is_foster_empty_);
     }
 
     /*

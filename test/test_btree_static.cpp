@@ -50,8 +50,22 @@ using KVArray = foster::KeyValueArray<K, V,
 >;
 
 template<class K, class V>
+using KVArrayNoPMNK = foster::KeyValueArray<K, V,
+      SArray<K>,
+      foster::BinarySearch<SArray<K>>,
+      foster::DefaultEncoder<K, V, K>
+>;
+
+template<class K, class V>
 using BTNode = foster::BtreeNode<K, V,
     KVArray,
+    foster::PlainPtr,
+    unsigned
+>;
+
+template<class K, class V>
+using BTNodeNoPMNK = foster::BtreeNode<K, V,
+    KVArrayNoPMNK,
     foster::PlainPtr,
     unsigned
 >;
@@ -68,7 +82,18 @@ using BTLevel = foster::BtreeLevel<
 >;
 
 template<class K, class V, unsigned L>
+using BTLevelNoPMNK = foster::BtreeLevel<
+    K, V, L,
+    BTNodeNoPMNK,
+    foster::EagerAdoption,
+    NodeMgr
+>;
+
+template<class K, class V, unsigned L>
 using SBtree = foster::StaticBtree<K, V, L, BTLevel>;
+
+template<class K, class V, unsigned L>
+using SBtreeNoPMNK = foster::StaticBtree<K, V, L, BTLevelNoPMNK>;
 
 
 TEST(MainTest, TestFewInsertions)
@@ -128,31 +153,43 @@ TEST(MainTest, TestManyInsertions)
     }
 }
 
-// TEST(IntegerKeyTest, TestManyInsertions)
-// {
-//     SBtree<int, int, 2> tree;
-//     int max = 10000;
+TEST(IntegerKeyTest, TestManyInsertions)
+{
+    SBtreeNoPMNK<int, int, 1> tree;
+    int max = 100000;
 
-//     auto start = std::chrono::system_clock::now();
+    auto start = std::chrono::system_clock::now();
 
-//     for (int i = 0; i < max; i++) {
-//         tree.put(i, i);
-//     }
+    for (int i = 0; i < max; i++) {
+        tree.put(i, i);
+    }
 
-//     auto end = std::chrono::system_clock::now();
-//     auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-//     std::cout << "Keys inserted: " << max << ". Runtime in us: " << elapsed.count() << std::endl;
-//     std::cout << "Keys inserted per us: " << (float) elapsed.count() / max << std::endl;
+    auto end = std::chrono::system_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << "Keys inserted: " << max << ". Runtime in us: " << elapsed.count() << std::endl;
+    std::cout << "Keys inserted per us: " << (float) elapsed.count() / max << std::endl;
 
-//     // list.print(std::cout);
+    std::map<int,int> map;
+    start = std::chrono::system_clock::now();
 
-//     for (int i = 0; i < max; i++) {
-//         int delivered;
-//         bool found = tree.get(i, delivered);
-//         EXPECT_TRUE(found);
-//         EXPECT_EQ(i, delivered);
-//     }
-// }
+    for (int i = 0; i < max; i++) {
+        map[i] =  i;
+    }
+
+    end = std::chrono::system_clock::now();
+    elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << "[map] Keys inserted: " << max << ". Runtime in us: " << elapsed.count() << std::endl;
+    std::cout << "[map] Keys inserted per us: " << (float) elapsed.count() / max << std::endl;
+
+    // list.print(std::cout);
+
+    for (int i = 0; i < max; i++) {
+        int delivered;
+        bool found = tree.get(i, delivered);
+        EXPECT_TRUE(found);
+        EXPECT_EQ(i, delivered);
+    }
+}
 
 int main(int argc, char **argv)
 {

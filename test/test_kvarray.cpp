@@ -87,7 +87,7 @@ private:
     KVArray<K, V, PMNK_Type> kv_;
 };
 
-TEST(TestInsertions, MainTest)
+TEST(TestInsertions, SimpleInsertions)
 {
     KVArrayValidator<string, string, uint16_t> kv;
     kv.insert("hello", "world");
@@ -103,7 +103,29 @@ TEST(TestInsertions, MainTest)
     kv.insert("hb", "world");
 }
 
-TEST(TestDeletions, MainTest)
+TEST(TestInsertionsFixedLength, SimpleInsertionsWithPMNK)
+{
+    KVArrayValidator<uint32_t, uint64_t, uint16_t> kv;
+    kv.insert(3, 3000);
+    kv.insert(1, 1000);
+    kv.insert(2, 2000);
+    kv.insert(5, 5000);
+    kv.insert(6, 6000);
+    kv.insert(4, 4000);
+}
+
+TEST(TestInsertionsFixedLength, SimpleInsertionsWithoutPMNK)
+{
+    KVArrayValidator<uint32_t, uint64_t, uint32_t> kv;
+    kv.insert(3, 3000);
+    kv.insert(1, 1000);
+    kv.insert(2, 2000);
+    kv.insert(5, 5000);
+    kv.insert(6, 6000);
+    kv.insert(4, 4000);
+}
+
+TEST(TestDeletions, SimpleDeletions)
 {
     KVArrayValidator<string, string, uint16_t> kv;
     kv.insert("a", "value1");
@@ -126,7 +148,7 @@ TEST(TestDeletions, MainTest)
     kv.remove("d");
 }
 
-TEST(TestMovement, MainTest)
+TEST(TestMovement, SimpleMovement)
 {
     using namespace foster;
 
@@ -160,6 +182,44 @@ TEST(TestMovement, MainTest)
     kv.get_map().erase("a");
     kv.validate();
     kv2.get_map()["a"] = "value1";
+    kv2.validate();
+}
+
+TEST(TestMovement, SimpleMovementWithoutPMNK)
+{
+    using namespace foster;
+
+    KVArrayValidator<int, int, int> kv;
+    kv.insert(1, 1000);
+    kv.insert(2, 2000);
+    kv.insert(3, 3000);
+    kv.insert(4, 4000);
+    kv.insert(5, 5000);
+    kv.insert(6, 6000);
+
+    KVArrayValidator<int, int, int> kv2;
+
+    // move d and e
+    internal::move_kv_records(kv2.get_kv(), 0, kv.get_kv(), 3, 2);
+    kv.get_map().erase(4);
+    kv.get_map().erase(5);
+    kv.validate();
+    kv2.get_map()[4] = 4000;
+    kv2.get_map()[5] = 5000;
+    kv2.validate();
+
+    // move b
+    internal::move_kv_records(kv2.get_kv(), 0, kv.get_kv(), 1, 1);
+    kv.get_map().erase(2);
+    kv.validate();
+    kv2.get_map()[2] = 2000;
+    kv2.validate();
+
+    // move a
+    internal::move_kv_records(kv2.get_kv(), 0, kv.get_kv(), 0, 1);
+    kv.get_map().erase(1);
+    kv.validate();
+    kv2.get_map()[1] = 1000;
     kv2.validate();
 }
 

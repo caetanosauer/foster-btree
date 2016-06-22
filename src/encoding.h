@@ -211,10 +211,12 @@ public:
     /** \breif Encodes a given key-value pair into a given memory area */
     static void encode(const K& key, const V& value, void* dest)
     {
+        char* char_dest = reinterpret_cast<char*>(dest);
         if (!std::is_same<K, PMNK_Type>::value) {
-            memcpy(dest, &key, sizeof(K));
+            memcpy(char_dest, &key, sizeof(K));
+            char_dest += sizeof(K);
         }
-        memcpy(dest, &value, sizeof(V));
+        memcpy(char_dest, &value, sizeof(V));
     }
 
     /**
@@ -225,9 +227,11 @@ public:
      */
     static void decode(const void* src, K* key, V* value = nullptr, PMNK_Type* pmnk = nullptr)
     {
+        const char* char_src = reinterpret_cast<const char*>(src);
         if (key) {
             if (!std::is_same<K, PMNK_Type>::value) {
-                memcpy(key, src, sizeof(K));
+                memcpy(key, char_src, sizeof(K));
+                char_src += sizeof(K);
             }
             else {
                 assert<0>(pmnk, "PMNK required to decode this key");
@@ -236,7 +240,7 @@ public:
         }
 
         if (value) {
-            memcpy(value, src, sizeof(V));
+            memcpy(value, char_src, sizeof(V));
         }
     }
 };

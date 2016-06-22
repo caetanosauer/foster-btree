@@ -45,14 +45,28 @@ using KVArray = foster::KeyValueArray<K, V,
 >;
 
 template<class K, class V>
+using KVArrayNoPMNK = foster::KeyValueArray<K, V,
+      SArray<K>,
+      foster::BinarySearch<SArray<K>>,
+      foster::DefaultEncoder<K, V, K>
+>;
+
+template<class K, class V>
 using BTNode = foster::BtreeNode<K, V,
     KVArray,
     foster::PlainPtr,
     unsigned
 >;
 
+template<class K, class V>
+using BTNodeNoPMNK = foster::BtreeNode<K, V,
+    KVArrayNoPMNK,
+    foster::PlainPtr,
+    unsigned
+>;
 
-TEST(TestInsertions, MainTest)
+
+TEST(TestInsertions, SimpleInsertions)
 {
     BTNode<string, string> node;
     ASSERT_TRUE(node.is_low_key_infinity());
@@ -72,15 +86,30 @@ TEST(TestInsertions, MainTest)
     ASSERT_EQ(v, "value__0");
 }
 
-TEST(TestSplit, MainTest)
+TEST(TestInsertions, SimpleInsertionsWithoutPMNK)
+{
+    BTNodeNoPMNK<int,int> node;
+    ASSERT_TRUE(node.is_low_key_infinity());
+    ASSERT_TRUE(node.is_high_key_infinity());
+    node.insert(2, 2000);
+    node.insert(0, 0);
+    node.insert(1, 1000);
+    node.insert(3, 3000);
+    node.insert(4, 4000);
+    node.insert(5, 5000);
+    ASSERT_TRUE(node.is_sorted());
+
+    // node.print(std::cout);
+
+    int v;
+    bool found = node.find(0, &v);
+    ASSERT_TRUE(found);
+    ASSERT_EQ(v, 0);
+}
+
+TEST(TestSplit, SimpleSplit)
 {
     using NodePointer = BTNode<string, string>::NodePointer;
-
-    BTNode<string, string> n1;
-    BTNode<string, string> n2;
-    BTNode<string, string> n3;
-    n1.add_foster_child(NodePointer(&n2));
-    n1.add_foster_child(NodePointer(&n3));
 
     BTNode<string, string> node;
     node.insert("key2", "value_2");
@@ -117,6 +146,49 @@ TEST(TestSplit, MainTest)
     node2.rebalance_foster_child();
 
     BTNode<string, string> node4;
+    node2.add_foster_child(NodePointer(&node4));
+    node2.rebalance_foster_child();
+}
+
+TEST(TestSplit, SimpleSplitWithoutPMNK)
+{
+    using NodePointer = BTNodeNoPMNK<int, int>::NodePointer;
+
+    BTNodeNoPMNK<int, int> node;
+    node.insert(2, 2000);
+    node.insert(0, 0);
+    node.insert(1, 1000);
+    node.insert(3, 3000);
+    node.insert(4, 4000);
+    node.insert(5, 5000);
+
+    BTNodeNoPMNK<int, int> node2;
+
+    node.add_foster_child(NodePointer(&node2));
+    ASSERT_TRUE(node.is_low_key_infinity());
+    ASSERT_TRUE(node.is_high_key_infinity());
+    ASSERT_TRUE(node2.is_low_key_infinity());
+    ASSERT_TRUE(node2.is_high_key_infinity());
+    ASSERT_TRUE(node.get_foster_child() == NodePointer(&node2));
+
+    node.rebalance_foster_child();
+    EXPECT_TRUE(!node.is_foster_empty());
+    int key;
+    node.get_foster_key(&key);
+    EXPECT_EQ(key, 3);
+    ASSERT_TRUE(node.is_low_key_infinity());
+    ASSERT_TRUE(node.is_high_key_infinity());
+
+    node2.get_fence_keys(&key, nullptr);
+    ASSERT_TRUE(key == 3);
+    ASSERT_TRUE(node2.is_high_key_infinity());
+
+    node2.insert(6, 6000);
+    BTNodeNoPMNK<int, int> node3;
+    node2.add_foster_child(NodePointer(&node3));
+    node2.rebalance_foster_child();
+
+    BTNodeNoPMNK<int, int> node4;
     node2.add_foster_child(NodePointer(&node4));
     node2.rebalance_foster_child();
 }

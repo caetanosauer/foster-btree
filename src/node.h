@@ -157,6 +157,8 @@ public:
         // Foster key is equal to high key of parent, which is equal to both fence keys on child
         KeyType low_key, high_key;
         get_fence_keys(&low_key, &high_key);
+        KeyType* low_ptr = is_low_key_infinity() ? nullptr : &low_key;
+        KeyType* high_ptr = is_high_key_infinity() ? nullptr : &high_key;
 
         if (child->slot_count() > 0 || child->get_foster_child()) {
             throw InvalidFosterChildException<KeyType, IdType>(high_key, child->id(), id(),
@@ -166,15 +168,16 @@ public:
         // Initialize new child's fenster with equal fence keys and move foster pointer & key
         KeyType old_foster_key;
         get_foster_key(&old_foster_key);
+        KeyType* old_foster_key_ptr = is_foster_empty() ? nullptr : &old_foster_key;
         NodePointer old_foster_child = get_foster_child();
-        bool success = child->update_fenster(&high_key, &high_key, &old_foster_key, old_foster_child);
+        bool success = child->update_fenster(high_ptr, high_ptr, old_foster_key_ptr, old_foster_child);
         assert<1>(success, "Keys will not fit into new empty foster child");
 
         // A newly inserted foster child is always empty, which means the foster key is the same as
         // the high key. In that case, we use an empty key (nullptr). This allows adding an empty
         // foster child without having to allocate more space for the foster key. This way, we make
         // sure that an empty foster child can always be added to an overflown node.
-        success = update_fenster(&low_key, &high_key, nullptr, child);
+        success = update_fenster(low_ptr, high_ptr, nullptr, child);
         assert<1>(success, "No space left to add foster child");
     }
 
@@ -212,7 +215,8 @@ public:
         SlotNumber slot_count = this->slot_count();
         SlotNumber split_slot = slot_count / 2;
         KeyType split_key;
-        RecordEncoder::decode(this->get_payload_for_slot(split_slot), &split_key);
+        RecordEncoder::decode(this->get_payload_for_slot(split_slot), &split_key, nullptr,
+                &this->get_slot(split_slot).key);
 
         // STEP 2: move records
         NodePointer child = get_foster_child();
@@ -223,13 +227,17 @@ public:
         // STEP 3: Adjust foster key
         KeyType low_key, high_key;
         get_fence_keys(&low_key, &high_key);
-        bool success = update_fenster(&low_key, &high_key, &split_key, child);
+        KeyType* low_ptr = is_low_key_infinity() ? nullptr : &low_key;
+        KeyType* high_ptr = is_high_key_infinity() ? nullptr : &high_key;
+
+        bool success = update_fenster(low_ptr, high_ptr, &split_key, child);
         if (!success) { return false; }
 
         // STEP 4: Adjust fence keys on foster child
         KeyType childs_foster_key;
         child->get_foster_key(&childs_foster_key);
-        success = child->update_fenster(&split_key, &high_key, &childs_foster_key,
+        KeyType* childs_foster_key_ptr = child->is_foster_empty() ? nullptr : &childs_foster_key;
+        success = child->update_fenster(&split_key, high_ptr, childs_foster_key_ptr,
                 child->get_foster_child());
         if (!success) { return false; }
 
