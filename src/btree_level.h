@@ -114,8 +114,13 @@ public:
             // find method guarantees that the next child will contain the value (i.e., the branch
             // pointer) associated with the slot where the key would be inserted if not found. The
             // return value (a Boolean "found") can be safely ignored.
-            bool found = branch->find(key, &child);
-            if (found) Adoption::try_adopt(branch, child, node_mgr_);
+            branch->find(key, &child);
+
+            // Try do adopt child's foster child -- restart traversal if it works
+            if (Adoption::try_adopt(branch, child, node_mgr_)) {
+                continue;
+            }
+
             break;
         }
 

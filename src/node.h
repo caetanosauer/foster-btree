@@ -189,7 +189,9 @@ public:
         if (!get_foster_child()) { return; }
         KeyType low_key, high_key;
         get_fence_keys(&low_key, &high_key);
-        bool success = update_fenster(&low_key, &high_key, nullptr, NodePointer{nullptr});
+        KeyType* low_ptr = is_low_key_infinity() ? nullptr : &low_key;
+        KeyType* high_ptr = is_high_key_infinity() ? nullptr : &high_key;
+        bool success = update_fenster(low_ptr, high_ptr, nullptr, NodePointer{nullptr});
         assert<1>(success && !get_foster_child(), "Unable to unlink foster child");
     }
 

@@ -39,33 +39,35 @@ template <
 struct EagerAdoption
 {
     template <class NodeMgr>
-    static void try_adopt(ParentNodePointer parent, ChildNodePointer child, NodeMgr& node_mgr)
+    static bool try_adopt(ParentNodePointer parent, ChildNodePointer child, NodeMgr& node_mgr)
     {
-        do_adopt(parent, child, node_mgr);
+        return do_adopt(parent, child, node_mgr);
     }
 
     template <class NodeMgr>
-    static void do_adopt(ParentNodePointer parent, ChildNodePointer child, NodeMgr& node_mgr)
+    static bool do_adopt(ParentNodePointer parent, ChildNodePointer child, NodeMgr& node_mgr)
     {
         using KeyType = typename NodeMgr::KeyType;
 
         ChildNodePointer foster = child->get_foster_child();
-        if (!foster) { return; }
+        if (!foster) { return false; }
 
         // Insert separator key and pointer into parent
         KeyType foster_key;
         child->get_foster_key(&foster_key);
-        bool inserted = parent->insert(foster_key, child);
+        bool inserted = parent->insert(foster_key, foster);
 
         // Split parent as long as insertion fails
         while (!inserted) {
             auto new_node = node_mgr.construct_node();
             parent = parent->split_for_insertion(foster_key, new_node);
-            inserted = parent->insert(foster_key, child);
+            inserted = parent->insert(foster_key, foster);
         }
 
         // Clear foster relationship on child
         child->unlink_foster_child();
+
+        return true;
     }
 };
 
