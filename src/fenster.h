@@ -185,17 +185,22 @@ public:
         string empty_key {""};
         if (!low) { low = &empty_key; }
         if (!high) { high = &empty_key; }
-        if (!foster) { foster = &empty_key; }
 
         // Compute common prefix and subtract its length from all keys' lengths
         size_t prefix_len = get_common_prefix_length(*low, *high);
-        assert<1>(foster->substr(0, prefix_len) == low->substr(0, prefix_len),
+        assert<1>(!foster || foster->substr(0, prefix_len) == low->substr(0, prefix_len),
                 "Foster key does not match the prefix of low- and high-fence keys");
+
+        if (!foster) { foster = &empty_key; }
 
         this->prefix_len = prefix_len;
         low_fence_len = low->length() - prefix_len;
         high_fence_len = high->length() - prefix_len;
-        foster_key_len = foster->length() - prefix_len;
+
+        foster_key_len = 0;
+        if (foster->length() > 0) {
+            foster_key_len = foster->length() - prefix_len;
+        }
 
         // Finally copy key data into the offload area
         char* dest = get_data_offset();
@@ -205,7 +210,9 @@ public:
         dest += low_fence_len;
         memcpy(dest, high->substr(prefix_len).data(), high_fence_len);
         dest += high_fence_len;
-        memcpy(dest, foster->substr(prefix_len).data(), foster_key_len);
+        if (!foster->empty()) {
+            memcpy(dest, foster->substr(prefix_len).data(), foster_key_len);
+        }
     }
 
     /// \brief Returns total number of bytes occupied by object and encoded keys in the offload area
@@ -214,6 +221,8 @@ public:
         return sizeof(Fenster<string, PointerType>)
             + prefix_len + low_fence_len + high_fence_len + foster_key_len;
     }
+
+    size_t get_prefix_size() { return prefix_len; }
 
     /// \brief Returns the number of bytes required to encode the given keys in a fenster object
     static size_t compute_size(string* low, string* high, string* foster)
@@ -224,8 +233,15 @@ public:
         if (!foster) { foster = &empty_key; }
 
         size_t prefix_len = get_common_prefix_length(*low, *high);
-        return sizeof(Fenster<string, PointerType>)
-            + low->length() + high->length() + foster->length() - (2 * prefix_len);
+        size_t result = sizeof(Fenster<string, PointerType>) + low->length() + high->length()
+            - prefix_len;
+
+        // If foster child is not empty, foster key is also prefixed and size must be adjusted
+        if (foster->length() > 0) {
+            result += foster->length() - prefix_len;
+        }
+
+        return result;
     }
 
     /// \brief Computes the common prefix of two keys. Used for prefix compression.
@@ -254,10 +270,18 @@ public:
             high->append(get_data_offset() + prefix_len + low_fence_len, high_fence_len);
         }
         if (foster) {
-            foster->reserve(prefix_len + foster_key_len);
-            foster->assign(get_data_offset(), prefix_len);
-            foster->append(get_data_offset() + prefix_len + low_fence_len + high_fence_len,
-                    foster_key_len);
+            if (!is_foster_empty()) {
+                foster->reserve(prefix_len + foster_key_len);
+                foster->assign(get_data_offset(), prefix_len);
+                foster->append(get_data_offset() + prefix_len + low_fence_len + high_fence_len,
+                        foster_key_len);
+            }
+            else {
+                // If foster child is empty, foster key == high key
+                foster->reserve(prefix_len + high_fence_len);
+                foster->assign(get_data_offset(), prefix_len);
+                foster->append(get_data_offset() + prefix_len + low_fence_len, high_fence_len);
+            }
         }
     }
 
@@ -276,7 +300,8 @@ public:
      */
     bool is_low_key_infinity() const { return prefix_len + low_fence_len == 0; }
     bool is_high_key_infinity() const { return prefix_len + high_fence_len == 0; }
-    bool is_foster_empty() const { return prefix_len + foster_key_len == 0; }
+    // Foster key length can never be equal to the prefix, so prefix_len is not considered here
+    bool is_foster_empty() const { return foster_key_len == 0; }
 
 protected:
 
