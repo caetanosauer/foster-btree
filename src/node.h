@@ -85,7 +85,6 @@ public:
     using ParentPointer = Pointer<ParentType>;
     using KeyType = K;
     using ValueType = V;
-    using RecordEncoder = typename KeyValueArray<K,V>::EncoderType;
     using SlotNumber = typename KeyValueArray<K, V>::SlotNumber;
     using PayloadPtr = typename KeyValueArray<K, V>::PayloadPtr;
     using FensterType = Fenster<KeyType, NodePointer>;
@@ -223,8 +222,7 @@ public:
         SlotNumber slot_count = this->slot_count();
         SlotNumber split_slot = slot_count / 2;
         KeyType split_key;
-        RecordEncoder::decode(this->get_payload_for_slot(split_slot), &split_key, nullptr,
-                &this->get_slot(split_slot).key);
+        this->read_slot(split_slot, &split_key, nullptr);
 
         // STEP 2: move records
         NodePointer child = get_foster_child();
@@ -370,11 +368,10 @@ public:
     {
         if (!this->is_sorted()) { return false; }
 
-        // TODO implement a KeyValueArray iterator
         KeyType key;
-        for (SlotNumber i = 0; i < this->slot_count(); i++) {
-           RecordEncoder::decode(this->get_payload_for_slot(i), &key, nullptr, &this->get_slot(i).key);
-           if (!key_range_contains(key)) { return false; }
+        auto iter = this->iterate();
+        while (iter.next(&key, nullptr)) {
+            if (!key_range_contains(key)) { return false; }
         }
 
         return true;

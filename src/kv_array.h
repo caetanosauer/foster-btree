@@ -175,6 +175,16 @@ public:
         return this->slot_count();
     }
 
+    /// \brief Decodes key and value associated with a given slot number
+    void read_slot(SlotNumber s, K* key, V* value)
+    {
+        auto& slot = this->get_slot(s);
+        Encoder::decode(this->get_payload(slot.ptr), key, value, &slot.key);
+    }
+
+    /**
+     * \brief Simple iterator class to support sequentially reading all key-value pairs
+     */
     class Iterator
     {
     public:
@@ -186,8 +196,7 @@ public:
         {
             if (current_slot_ >= kv_->size()) { return false; }
 
-            typename SlotArray::Slot& slot = kv_->get_slot(current_slot_);
-            Encoder::decode(kv_->get_payload(slot.ptr), key, value, &slot.key);
+            kv_->read_slot(current_slot_, key, value);
             current_slot_++;
 
             return true;
@@ -198,6 +207,7 @@ public:
         ThisType* kv_;
     };
 
+    /// \brief Yields an iterator instance to sequentially read all key-value pairs
     Iterator iterate()
     {
         return Iterator{this};
