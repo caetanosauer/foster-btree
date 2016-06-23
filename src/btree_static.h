@@ -75,6 +75,12 @@ public:
         return node->find(key, &value);
     }
 
+    bool remove(const K& key)
+    {
+        LeafPointer node = root_level_->traverse(root_, key);
+        return node->template remove<false>(key);
+    }
+
     void print(std::ostream& out)
     {
         root_level_->print(root_, out);

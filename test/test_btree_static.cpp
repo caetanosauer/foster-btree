@@ -96,7 +96,7 @@ template<class K, class V, unsigned L>
 using SBtreeNoPMNK = foster::StaticBtree<K, V, L, BTLevelNoPMNK>;
 
 
-TEST(MainTest, TestFewInsertions)
+TEST(MainTest, SimpleInsertions)
 {
     SBtree<string, string, 2> tree;
     tree.put("key", "value");
@@ -113,7 +113,7 @@ TEST(MainTest, TestFewInsertions)
     ASSERT_EQ(v, "value__0");
 }
 
-TEST(MainTest, TestManyInsertions)
+TEST(MainTest, ManyInsertions)
 {
     SBtree<string, string, 1> tree;
     int max = 10000;
@@ -153,7 +153,36 @@ TEST(MainTest, TestManyInsertions)
     }
 }
 
-TEST(IntegerKeyTest, TestManyInsertions)
+TEST(DeletionTest, ManyDeletions)
+{
+    SBtree<string, string, 1> tree;
+
+    // insert all keys from 0 to max-1
+    int max = 1000;
+    for (int i = 0; i < max; i++) {
+        tree.put("key" + std::to_string(i), "value" + std::to_string(i));
+    }
+
+    // delete all even keys
+    for (int i = 0; i < max; i += 2) {
+        tree.remove("key" + std::to_string(i));
+    }
+
+    // verify that only odd keys are present
+    for (int i = 0; i < max; i++) {
+        string expected = "value" + std::to_string(i);
+        string delivered;
+        bool found = tree.get("key" + std::to_string(i), delivered);
+
+        if (i % 2 == 1) {
+            EXPECT_TRUE(found);
+            EXPECT_EQ(expected, delivered);
+        }
+        else { EXPECT_TRUE(!found); }
+    }
+}
+
+TEST(IntegerKeyTest, ManyInsertions)
 {
     SBtreeNoPMNK<int, int, 1> tree;
     int max = 100000;

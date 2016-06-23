@@ -143,20 +143,23 @@ public:
      * \brief Removes a key-value pair from the array.
      * \throws KeyNotFoundException if key does not exist in the array.
      */
-    void remove(const K& key)
+    template <bool MustExist = true>
+    bool remove(const K& key)
     {
         // 1. Find slot containing the given key.
         SlotNumber slot;
         if (!find_slot(key, nullptr, slot)) {
-            throw KeyNotFoundException<K>(key);
+            if (MustExist) { throw KeyNotFoundException<K>(key); }
+            else { return false; }
         }
 
         // 2. Free the payload and delete the slot.
         PayloadPtr payload = this->get_slot(slot).ptr;
         size_t payload_length = Encoder::get_payload_length(this->get_payload(payload));
         this->free_payload(payload, payload_length);
-
         this->delete_slot(slot);
+
+        return true;
     }
 
     /**
@@ -260,7 +263,7 @@ protected:
         // the value pointer, if a valid one is given, will contain whatever value was found in that
         // slot -- provided that the array contains at least one slot. This is useful for traversal
         // of branch nodes in a B-tree (\see BtreeLevel::traverse).
-        if (value && this->slot_count() > 0) {
+        if (value && slot > 0) {
             assert<1>(slot <= this->slot_count());
             // Slot contains a key value greater than or equal to the searched key. In the former
             // case, we must return the value of the previous slot for correct traversal. The latter
