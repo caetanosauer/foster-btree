@@ -67,6 +67,12 @@ public:
         return out << ptr.ptr_;
     }
 
+    template <class OtherT>
+    static PlainPtr<T> static_pointer_cast(PlainPtr<OtherT> other)
+    {
+        return PlainPtr<T>(static_cast<T*>(other.operator void*()));
+    }
+
 private:
     T* ptr_;
 };

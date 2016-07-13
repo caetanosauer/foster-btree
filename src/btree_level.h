@@ -104,7 +104,7 @@ struct LeveledNode<0, LeafType> {
  * \tparam Level Level number.
  * \tparam LeadNode Template for the leaf node class. Upper-level node types are determined
  *      recursively from this.
- *  \tparam NodeMgr Template for the node manager object, used to construct and destroy nodes of
+ * \tparam NodeMgr Template for the node manager object, used to construct and destroy nodes of
  *      this level.
  */
 template <

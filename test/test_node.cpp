@@ -29,6 +29,7 @@
 #include "search.h"
 #include "kv_array.h"
 #include "node.h"
+#include "node_trunc.h"
 #include "pointers.h"
 
 constexpr size_t DftArrayBytes = 8192;
@@ -61,6 +62,13 @@ using BTNode = foster::BtreeNode<K, V,
 template<class K, class V>
 using BTNodeNoPMNK = foster::BtreeNode<K, V,
     KVArrayNoPMNK,
+    foster::PlainPtr,
+    unsigned
+>;
+
+template<class V>
+using BTNodeTrunc = foster::BtreeNodePrefixTrunc<string, V,
+    KVArray,
     foster::PlainPtr,
     unsigned
 >;
@@ -212,6 +220,89 @@ TEST(TestSplit, SimpleSplitWithoutPMNK)
     BTNodeNoPMNK<int, int> node4;
     node2.add_foster_child(NodePointer(&node4));
     node2.rebalance_foster_child();
+}
+
+TEST(TestPrefixTruncation, SimpleTruncation)
+{
+    using NodePointer = BTNodeTrunc<int>::NodePointer;
+
+    BTNodeTrunc<int> node;
+    node.insert("longkeyprefix0", 0);
+    node.insert("longkeyprefix1", 1);
+    node.insert("longkeyprefix2", 2);
+    node.insert("longkeyprefix3", 3);
+    node.insert("longkeyprefix4", 4);
+    node.insert("longkeyprefixF", 95);
+    node.insert("longkeyprefixG", 96);
+    node.insert("longkeyprefixH", 97);
+    node.insert("longkeyprefixI", 98);
+    node.insert("longkeyprefixJ", 99);
+
+    BTNodeTrunc<int> node2;
+    node.add_foster_child(NodePointer{&node2});
+    node.rebalance_foster_child();
+
+    node2.insert("longkeyprefixV", 90);
+    node2.insert("longkeyprefixW", 91);
+    node2.insert("longkeyprefixX", 92);
+    node2.insert("longkeyprefixY", 93);
+    node2.insert("longkeyprefixZ", 94);
+
+    BTNodeTrunc<int> node3;
+    node2.add_foster_child(NodePointer{&node3});
+    node2.rebalance_foster_child();
+
+    // At this point, unlinking the foster child of node 2 should adjust its fence keys to:
+    // low = longkeyprefix5 and high = longkeyprefix90
+    // Which means that only the values A, B, C, ... will be stored
+    node2.unlink_foster_child();
+
+    node2.insert("longkeyprefixA", 90);
+    node2.insert("longkeyprefixB", 91);
+    node2.insert("longkeyprefixC", 92);
+    node2.insert("longkeyprefixD", 93);
+    node2.insert("longkeyprefixE", 94);
+
+    // 1) Make sure that a query with the long key returns the expected value
+    int v;
+    bool found;
+    found = node2.find("longkeyprefixA", &v);
+    EXPECT_EQ(v, 90); EXPECT_TRUE(found);
+    found = node2.find("longkeyprefixB", &v);
+    EXPECT_EQ(v, 91); EXPECT_TRUE(found);
+    found = node2.find("longkeyprefixC", &v);
+    EXPECT_EQ(v, 92); EXPECT_TRUE(found);
+    found = node2.find("longkeyprefixD", &v);
+    EXPECT_EQ(v, 93); EXPECT_TRUE(found);
+    found = node2.find("longkeyprefixE", &v);
+    EXPECT_EQ(v, 94); EXPECT_TRUE(found);
+
+    // 2) Make sure that the actual keys stored do not contain the prefix
+    auto node2_p = BTNode<string, int>::NodePointer::static_pointer_cast(NodePointer{&node2});
+    found = node2_p->find("A", &v);
+    EXPECT_EQ(v, 90); EXPECT_TRUE(found);
+    found = node2_p->find("B", &v);
+    EXPECT_EQ(v, 91); EXPECT_TRUE(found);
+    found = node2_p->find("C", &v);
+    EXPECT_EQ(v, 92); EXPECT_TRUE(found);
+    found = node2_p->find("D", &v);
+    EXPECT_EQ(v, 93); EXPECT_TRUE(found);
+    found = node2_p->find("E", &v);
+    EXPECT_EQ(v, 94); EXPECT_TRUE(found);
+
+    // 3) Test iterator
+    auto iter = node2.iterate();
+    string k;
+    char first_char = 'A';
+    int first_v = 90;
+    int i = 0;
+    while (iter.next(&k, &v)) {
+        std::stringstream ss;
+        ss << "longkeyprefix" << static_cast<char>(first_char + i);
+        EXPECT_EQ(k, ss.str());
+        EXPECT_EQ(v, first_v + i);
+        i++;
+    }
 }
 
 int main(int argc, char **argv)

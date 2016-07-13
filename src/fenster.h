@@ -285,6 +285,11 @@ public:
         }
     }
 
+    void get_prefix(string& prefix) const
+    {
+        prefix.assign(get_data_offset(), prefix_len);
+    }
+
     PointerType get_foster_ptr () const { return foster_ptr; }
 
     /**

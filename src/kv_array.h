@@ -162,6 +162,42 @@ public:
         return true;
     }
 
+    void truncate_keys(size_t length)
+    {
+        static_assert(std::is_same<K, string>::value,
+                "Methor truncate_keys is only available for string keys");
+
+        if (length == 0) { return; }
+
+        K key;
+        V value;
+        SlotNumber i = 0;
+        while (i < this->slot_count()) {
+            auto& slot = this->get_slot(i);
+            Encoder::decode(this->get_payload(slot.ptr), &key, &value, &slot.key);
+
+            void* payload_addr = this->get_payload_for_slot(i);
+            size_t old_len = this->get_payload_count(Encoder::get_payload_length(payload_addr));
+
+            // truncate first 'length' characters of key and update PMNK
+            key.erase(0, length);
+            slot.key = Encoder::get_pmnk(key);
+
+            // update payload with truncated key
+            Encoder::encode(key, value, payload_addr);
+            size_t new_len = this->get_payload_count(Encoder::get_payload_length(payload_addr));
+
+            // if truncated key occupies less payload blocks, shift accordingly
+            assert<1>(new_len <= old_len);
+            if (new_len < old_len) {
+                PayloadPtr p_end = slot.ptr + new_len;
+                this->free_payload(p_end, length);
+            }
+
+            i++;
+        }
+    }
+
     /**
      * \brief Searches for a given key in the array.
      * \see find_slot

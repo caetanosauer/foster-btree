@@ -352,6 +352,11 @@ public:
         get_fenster()->get_keys(nullptr, nullptr, key);
     }
 
+    void get_prefix(KeyType* key) const
+    {
+        get_fenster()->get_keys(nullptr, nullptr, key);
+    }
+
     NodePointer get_foster_child() const
     {
         return get_fenster()->get_foster_ptr();
