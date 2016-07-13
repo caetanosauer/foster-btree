@@ -115,21 +115,10 @@ template<int N>
 using SignedInteger = typename MetaIntegerImpl<true, N>::type;
 
 /**
- * Declare the given type T only if the passed condition is true. Otherwise
- * yield void.
+ * Declare the given type T only if the passed condition is true.
  */
 template<bool Condition, typename T = void>
-struct EnableIfImpl {
-    typedef T type;
-};
-
-template<typename T>
-struct EnableIfImpl<false, T> {
-    typedef void type;
-};
-
-template<bool Condition, typename T = void>
-using EnableIf = typename EnableIfImpl<Condition, T>::type;
+using EnableIf = typename std::enable_if<Condition, T>::type;
 
 /**
  * Return size of the given object types aligned to the given block size.
