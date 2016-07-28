@@ -38,21 +38,44 @@ template <
 >
 struct EagerAdoption
 {
-    template <class NodeMgr>
-    static bool try_adopt(ParentNodePointer parent, ChildNodePointer child, NodeMgr& node_mgr)
-    {
-        return do_adopt(parent, child, node_mgr);
-    }
+    static constexpr bool Latching = ParentNodePointer::PointeeType::LatchingEnabled;
 
     template <class NodeMgr>
-    static bool do_adopt(ParentNodePointer parent, ChildNodePointer child, NodeMgr& node_mgr)
+    static bool try_adopt(ParentNodePointer& parent, ChildNodePointer child, NodeMgr& node_mgr)
     {
-        using KeyType = typename NodeMgr::KeyType;
-
         if (!child) { return false; }
 
         ChildNodePointer foster = child->get_foster_child();
         if (!foster) { return false; }
+
+        // First attempt latch upgrade on parent and on child (if it's not already latched exclusively)
+        bool child_latch_upgraded = false;
+
+        // Parent is always latched in shared mode
+        if (!parent->attempt_upgrade()) { return false; }
+        if (child->has_reader()) {
+            if (!child->attempt_upgrade()) {
+                parent->downgrade();
+                return false;
+            }
+            child_latch_upgraded = true;
+        }
+
+        // Latching was successful or it's disabled -- proceed with adoption
+        bool success = do_adopt(parent, child, foster, node_mgr);
+
+        // Release/downgrade acquired latches
+        parent->downgrade();
+        if (child_latch_upgraded) { child->downgrade(); }
+
+        return success;
+    }
+
+    template <class NodeMgr>
+    static bool do_adopt(ParentNodePointer& parent, ChildNodePointer child, ChildNodePointer foster,
+            NodeMgr& node_mgr)
+    {
+        using KeyType = typename NodeMgr::KeyType;
 
         // Insert separator key and pointer into parent
         KeyType foster_key;

@@ -41,6 +41,16 @@ using std::string;
 
 namespace foster {
 
+struct DummyLatch {
+    void acquire_read() {}
+    void acquire_write() {}
+    void release_read() {}
+    void release_write() {}
+    bool attempt_upgrade() { return true; }
+    bool has_reader() { return false; }
+    void downgrade() {}
+};
+
 /**
  * \brief Basic class that represents a node of a Foster B-tree.
  *
@@ -72,16 +82,17 @@ template <
     class V,
     template <class,class> class KeyValueArray,
     template <class> class Pointer,
-    class IdType
+    class IdType,
+    class Latch = DummyLatch
 >
 class BtreeNode : public KeyValueArray<K, V>
 {
 public:
 
     // Type aliases for convenience and external access
-    using ThisType = BtreeNode<K, V, KeyValueArray, Pointer, IdType>;
+    using ThisType = BtreeNode<K, V, KeyValueArray, Pointer, IdType, Latch>;
     using NodePointer = Pointer<ThisType>;
-    using ParentType = BtreeNode<K, NodePointer, KeyValueArray, Pointer, IdType>;
+    using ParentType = BtreeNode<K, NodePointer, KeyValueArray, Pointer, IdType, Latch>;
     using ParentPointer = Pointer<ParentType>;
     using KeyType = K;
     using ValueType = V;
@@ -90,15 +101,21 @@ public:
     using FensterType = Fenster<KeyType, NodePointer>;
     template <class T> using PointerType = Pointer<T>;
 
+    static constexpr bool LatchingEnabled = !std::is_same<Latch, DummyLatch>::value;
+
     /**
      * Metadata for a node is maintained in the header, which is stored in the end of the payload
      * area of the underlying slot array. Currently, such metadata includes the node ID, which is
      * not used internally except for setting it in the constructor, and the pointer to the payload
      * containing the fenster object, which must be accessed every time we read or write the fence
      * and foster keys or the foster pointer.
+     *
+     * It inherits from Latch instead of including it as a member because it allows for the empty
+     * base optimization, i.e., if the latch class is empty, no extra space is occupied.
      */
     // Adding "0+" to get around bug in gcc versions < 4.9
     struct alignas(0+KeyValueArray<K, V>::Alignment) HeaderData
+        : public Latch
     {
         IdType id;
         PayloadPtr fenster_ptr;
@@ -273,6 +290,7 @@ public:
     NodePointer split_for_insertion(const KeyType& key, NodePointer new_node)
     {
         // STEP 1: Add a new empty foster child
+        new_node->acquire_write();
         add_foster_child(new_node);
 
         // STEP 2: Move records into the new foster child using rebalance operation
@@ -282,9 +300,13 @@ public:
         // STEP 3: Decide if insertion should go into old or new node and return it
         if (!key_range_contains(key)) {
             assert<1>(new_node->key_range_contains(key));
+            this->release_write();
             return new_node;
         }
-        else { return NodePointer{this}; }
+        else {
+            new_node->release_write();
+            return NodePointer{this};
+        }
     }
 
     /**@}**/
@@ -365,6 +387,54 @@ public:
     bool is_low_key_infinity() const { return get_fenster()->is_low_key_infinity(); }
     bool is_high_key_infinity() const { return get_fenster()->is_high_key_infinity(); }
     bool is_foster_empty() const { return get_fenster()->is_foster_empty(); }
+
+    /**@}**/
+
+    /** @name Convenience methods to access latch **/
+    /**@{**/
+
+    void acquire_write()
+    {
+        if (LatchingEnabled) { header().acquire_write(); }
+    }
+
+    void acquire_read()
+    {
+        if (LatchingEnabled) { header().acquire_read(); }
+    }
+
+    void release_write()
+    {
+        if (LatchingEnabled) { header().release_write(); }
+    }
+
+    void release_read()
+    {
+        if (LatchingEnabled) { header().release_read(); }
+    }
+
+    bool attempt_upgrade()
+    {
+        if (LatchingEnabled) { return header().attempt_upgrade(); }
+        return false;
+    }
+
+    void downgrade()
+    {
+        if (LatchingEnabled) { header().downgrade(); }
+    }
+
+    bool has_reader()
+    {
+        if (LatchingEnabled) { return header().has_reader(); }
+        return false;
+    }
+
+    bool has_writer()
+    {
+        if (LatchingEnabled) { return header().has_writer(); }
+        return false;
+    }
 
     /**@}**/
 

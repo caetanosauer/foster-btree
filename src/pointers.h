@@ -36,23 +36,10 @@ namespace foster {
 template <class T>
 class PlainPtr {
 public:
+
+    using PointeeType = T;
+
     explicit PlainPtr(T* p = nullptr) : ptr_(p) {}
-
-    // PlainPtr(const PlainPtr& other) : ptr_(other.ptr_) {}
-
-    // PlainPtr& operator=(const PlainPtr& other)
-    // {
-    //     ptr_ = other.ptr_;
-    //     return *this;
-    // }
-
-    // PlainPtr(PlainPtr&& other) : ptr_(other.ptr_) { other.ptr_ = nullptr; }
-
-    // PlainPtr& operator=(PlainPtr&& other)
-    // {
-    //     ptr_ = std::move(other.ptr_);
-    //     return *this;
-    // }
 
     operator bool() const { return ptr_; }
     T* operator->() const { return ptr_; }

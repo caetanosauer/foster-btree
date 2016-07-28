@@ -58,7 +58,7 @@ public:
 
     void put(const K& key, const V& value)
     {
-        LeafPointer node = root_level_->traverse(root_, key);
+        LeafPointer node = root_level_->traverse(root_, key, true /* for_update */);
         bool inserted = node->insert(key, value);
 
         while (!inserted) {
@@ -67,18 +67,24 @@ public:
             node = node->split_for_insertion(key, new_node);
             inserted = node->insert(key, value);
         }
+
+        node->release_write();
     }
 
     bool get(const K& key, V& value)
     {
-        LeafPointer node = root_level_->traverse(root_, key);
-        return node->find(key, &value);
+        LeafPointer node = root_level_->traverse(root_, key, false /* for_update */);
+        bool res = node->find(key, &value);
+        node->release_read();
+        return res;
     }
 
     bool remove(const K& key)
     {
-        LeafPointer node = root_level_->traverse(root_, key);
-        return node->template remove<false>(key);
+        LeafPointer node = root_level_->traverse(root_, key, true /* for_update */);
+        bool res = node->template remove<false>(key);
+        node->release_write();
+        return res;
     }
 
     void print(std::ostream& out)

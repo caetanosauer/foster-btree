@@ -130,27 +130,35 @@ public:
     using Adoption = AdoptionPolicy<NodePointer, ChildPointer>;
     using IdType = typename NodeMgr<LeafNodeType>::IdType;
 
-    BtreeLevel() :
-        next_level_(new LowerLevel),
-        node_mgr_(NodeMgr<ThisNodeType>{})
+    BtreeLevel(unsigned depth = 0) :
+        next_level_(new LowerLevel(depth+1)),
+        node_mgr_(NodeMgr<ThisNodeType>{}),
+        depth_(depth)
     {
     }
 
     static constexpr unsigned level() { return Level; }
 
-    LeafPointer traverse(NodePointer branch, const K& key)
+    LeafPointer traverse(NodePointer branch, const K& key, bool for_update)
     {
+        // If this is root node, latch it here
+        if (depth_ == 0) { branch->acquire_read(); }
+
         ChildPointer child {nullptr};
 
         // Descend into the target child node
         while (branch) {
             // Branch nodes that participate in a traversal must not be empty
             assert<1>(branch->size() > 0 || !branch->is_foster_empty());
+            assert<1>(branch->has_reader());
 
             // If current branch does not contain the key, it must be in a foster child
             if (!branch->key_range_contains(key)) {
-                assert<1>(branch->get_foster_child());
-                branch = branch->get_foster_child();
+                NodePointer foster = branch->get_foster_child();
+                assert<1>(foster);
+                foster->acquire_read();
+                branch->release_read();
+                branch = foster;
                 continue;
             }
 
@@ -160,23 +168,33 @@ public:
             branch->find(key, &child);
             assert<1>(child);
 
+            // Latch child node before proceeding
+            latch_pointer(child, for_update);
+
             // Try do adopt child's foster child -- restart traversal if it works
             if (Adoption::try_adopt(branch, child, node_mgr_)) {
+                unlatch_pointer(child, for_update);
                 continue;
             }
 
             break;
         }
 
+        // Release latch on parent
+        branch->release_read();
+
         // Now we found the target child node, but key may be somewhere in the foster chain
         assert<1>(child->fence_contains(key));
         while (child && !child->key_range_contains(key)) {
-            child = child->get_foster_child();
+            ChildPointer foster = child->get_foster_child();
+            latch_pointer(foster, for_update);
+            unlatch_pointer(child, for_update);
+            child = foster;
         }
 
         assert<1>(child, "Traversal reached null pointer");
 
-        return next_level_->traverse(child, key);
+        return next_level_->traverse(child, key, for_update);
     }
 
     NodePointer construct_node()
@@ -227,8 +245,25 @@ public:
 
 private:
 
+    void latch_pointer(ChildPointer child, bool ex_mode)
+    {
+        // Exclusive latch is only required at leaf nodes during normal traversal.
+        // (If required, splits, merges, and adoptions will attempt upgrade on branch nodes)
+        if (Level == 1 && ex_mode) { child->acquire_write(); }
+        else { child->acquire_read(); }
+    }
+
+    void unlatch_pointer(ChildPointer child, bool ex_mode)
+    {
+        // Exclusive latch is only required at leaf nodes during normal traversal.
+        // (If required, splits, merges, and adoptions will attempt upgrade on branch nodes)
+        if (Level == 1 && ex_mode) { child->release_write(); }
+        else { child->release_read(); }
+    }
+
     std::unique_ptr<LowerLevel> next_level_;
     NodeMgr<ThisNodeType> node_mgr_;
+    const unsigned depth_;
 };
 
 template <
@@ -244,14 +279,15 @@ public:
 
     using NodePointer = typename LeafNode<K,V>::NodePointer;
 
-    BtreeLevel() :
-        node_mgr_(NodeMgr<LeafNode<K,V>>{})
+    BtreeLevel(unsigned depth = 0) :
+        node_mgr_(NodeMgr<LeafNode<K,V>>{}),
+        depth_(depth)
     {
     }
 
     static constexpr unsigned level() { return 0; }
 
-    NodePointer traverse(NodePointer n, const K&)
+    NodePointer traverse(NodePointer n, const K&, bool)
     {
         return n;
     }
@@ -291,6 +327,7 @@ public:
 
 private:
     NodeMgr<LeafNode<K,V>> node_mgr_;
+    const unsigned depth_;
 };
 
 } // namespace foster

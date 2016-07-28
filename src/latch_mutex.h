@@ -121,13 +121,6 @@ public:
         std::atomic_thread_fence(std::memory_order_acquire);
     }
 
-private:
-    std::mutex mutex_;
-    std::atomic<unsigned> counter_;
-
-    static constexpr unsigned WRITER_MASK = 0x01;
-    static constexpr unsigned READER_MASK = 0x02;
-
     bool has_reader()
     {
         return counter_ & ~WRITER_MASK;
@@ -137,6 +130,13 @@ private:
     {
         return counter_ & WRITER_MASK;
     }
+
+private:
+    std::mutex mutex_;
+    std::atomic<unsigned> counter_;
+
+    static constexpr unsigned WRITER_MASK = 0x01;
+    static constexpr unsigned READER_MASK = 0x02;
 
     bool has_writer(unsigned c)
     {
