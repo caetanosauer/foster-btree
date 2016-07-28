@@ -23,7 +23,6 @@
 
 #include <gtest/gtest.h>
 #include <cstring>
-#include <chrono>
 
 #include "slot_array.h"
 #include "encoding.h"
@@ -36,7 +35,7 @@
 #include "btree_static.h"
 #include "btree_adoption.h"
 
-constexpr size_t DftArrayBytes = 8192;
+constexpr size_t DftArrayBytes = 4096;
 constexpr size_t DftAlignment = 8;
 
 template<class PMNK_Type>
@@ -115,32 +114,12 @@ TEST(MainTest, SimpleInsertions)
 
 TEST(MainTest, ManyInsertions)
 {
-    SBtree<string, string, 1> tree;
-    int max = 10000;
-
-    std::map<string, string> map;
-
-    auto start = std::chrono::system_clock::now();
+    SBtree<string, string, 2> tree;
+    int max = 100000;
 
     for (int i = 0; i < max; i++) {
         tree.put("key" + std::to_string(i), "value" + std::to_string(i));
     }
-
-    auto end = std::chrono::system_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "Keys inserted: " << max << ". Runtime in us: " << elapsed.count() << std::endl;
-    std::cout << "Keys inserted per us: " << (float) elapsed.count() / max << std::endl;
-
-    start = std::chrono::system_clock::now();
-
-    for (int i = 0; i < max; i++) {
-        map["key" + std::to_string(i)] =  "value" + std::to_string(i);
-    }
-
-    end = std::chrono::system_clock::now();
-    elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "[map] Keys inserted: " << max << ". Runtime in us: " << elapsed.count() << std::endl;
-    std::cout << "[map] Keys inserted per us: " << (float) elapsed.count() / max << std::endl;
 
     // list.print(std::cout);
 
@@ -148,8 +127,8 @@ TEST(MainTest, ManyInsertions)
         string expected = "value" + std::to_string(i);
         string delivered;
         bool found = tree.get("key" + std::to_string(i), delivered);
-        EXPECT_TRUE(found);
-        EXPECT_EQ(expected, delivered);
+        ASSERT_TRUE(found);
+        ASSERT_EQ(expected, delivered);
     }
 }
 
@@ -184,39 +163,20 @@ TEST(DeletionTest, ManyDeletions)
 
 TEST(IntegerKeyTest, ManyInsertions)
 {
-    SBtreeNoPMNK<int, int, 1> tree;
+    SBtreeNoPMNK<int, int, 2> tree;
     int max = 100000;
-
-    auto start = std::chrono::system_clock::now();
 
     for (int i = 0; i < max; i++) {
         tree.put(i, i);
     }
-
-    auto end = std::chrono::system_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "Keys inserted: " << max << ". Runtime in us: " << elapsed.count() << std::endl;
-    std::cout << "Keys inserted per us: " << (float) elapsed.count() / max << std::endl;
-
-    std::map<int,int> map;
-    start = std::chrono::system_clock::now();
-
-    for (int i = 0; i < max; i++) {
-        map[i] =  i;
-    }
-
-    end = std::chrono::system_clock::now();
-    elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "[map] Keys inserted: " << max << ". Runtime in us: " << elapsed.count() << std::endl;
-    std::cout << "[map] Keys inserted per us: " << (float) elapsed.count() / max << std::endl;
 
     // tree.print(std::cout);
 
     for (int i = 0; i < max; i++) {
         int delivered;
         bool found = tree.get(i, delivered);
-        EXPECT_TRUE(found);
-        EXPECT_EQ(i, delivered);
+        ASSERT_TRUE(found);
+        ASSERT_EQ(i, delivered);
     }
 }
 

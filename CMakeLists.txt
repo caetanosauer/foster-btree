@@ -76,6 +76,7 @@ TEST_BIG_ENDIAN(WORDS_BIGENDIAN)
 add_subdirectory(src)
 add_subdirectory(third-party/googletest EXCLUDE_FROM_ALL)
 add_subdirectory(test EXCLUDE_FROM_ALL)
+add_subdirectory(bench EXCLUDE_FROM_ALL)
 
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)
