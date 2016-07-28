@@ -27,6 +27,13 @@
 // Adding a \0 at the end means we don't have to keep track of length to read the payload
 char data[6] = {'d', 'a', 't', 'a', '0', '\0'};
 
+template<class T> T get_key(unsigned n) { return static_cast<T>(n); }
+
+template<> string get_key<string>(unsigned n)
+{
+    return std::to_string(n);
+}
+
 template<class T>
 void sequential_insertions(T& slots, bool forward, int count = -1)
 {
@@ -35,6 +42,7 @@ void sequential_insertions(T& slots, bool forward, int count = -1)
 
     using PayloadPtr = typename T::PayloadPtr;
     using SlotNumber = typename T::SlotNumber;
+    using KeyType = typename T::KeyType;
 
     PayloadPtr ptr = 0;
     SlotNumber i = 0;
@@ -56,10 +64,10 @@ void sequential_insertions(T& slots, bool forward, int count = -1)
             break;
         }
         slots[i].ghost = false;
-        slots[i].key = 100 + i;
+        slots[i].key = get_key<KeyType>(100 + i);
         slots[i].ptr = ptr;
 
-        EXPECT_EQ(100 + i, slots[i].key);
+        // EXPECT_EQ(100 + i, slots[i].key);
         EXPECT_TRUE(strncmp(data, (char*) slots.get_payload(ptr), 6) == 0);
         EXPECT_EQ(i + 1, slots.slot_count());
 
@@ -89,6 +97,7 @@ void sequential_deletions(T& slots, bool forward, int count = -1)
     size_t initial_slot_count = slots.slot_count();
 
     using SlotNumber = typename T::SlotNumber;
+    using KeyType = typename T::KeyType;
 
     // Pick increment function depending on forward parameter. Increment if false; do nothing if true.
     auto incr = !forward ? [](SlotNumber& i){ i++; } : [](SlotNumber&){};
@@ -107,7 +116,7 @@ void sequential_deletions(T& slots, bool forward, int count = -1)
         EXPECT_EQ(free_space + sizeof(typename T::Slot), slots.free_space());
 
         if (slots.slot_count() == 0) { break; }
-        EXPECT_EQ(100 + j + 1, slots[i].key);
+        EXPECT_EQ(get_key<KeyType>(100 + j + 1), slots[i].key);
         data[4] = '0' + ((j + 1) % 10);
         EXPECT_TRUE(strncmp(data, (char*) slots.get_payload(slots[i].ptr), 6) == 0);
 
@@ -138,6 +147,7 @@ void test()
 
 TEST(TestSlotArray, MainTest) {
     test<foster::SlotArray<uint16_t>>();
+    test<foster::SlotArray<string>>();
 }
 
 int main(int argc, char **argv)

@@ -159,9 +159,6 @@ private:
      * Compile-time assertions to verify integrity of the template parameters and the resulting
      * class.
      */
-    // We may relax this restriction in the future (e.g., to support std::array or PODs)
-    static_assert(std::is_integral<Key>::value || std::is_floating_point<Key>::value,
-            "SlotArray template argument error: Key must be either an integral or floating-point type");
     static_assert(ArrayBytes % Alignment == 0,
             "SlotArray template argument error: ArrayBytes must be a multiple of Aligment");
     static_assert(sizeof(HeaderData) % Alignment == 0,
@@ -178,6 +175,8 @@ public:
     /** \brief Default constructor. No arguments required */
     SlotArray() : header_{0, PayloadCount}
     {};
+
+    ~SlotArray() {};
 
     /** \brief Amount of free space (in bytes) between end of slot vector and begin of payloads. */
     size_t free_space()
@@ -318,6 +317,12 @@ public:
         if (free_space() < sizeof(Slot)) { return false; }
         memmove(&slots_[slot+1], &slots_[slot], sizeof(Slot) * (slot_count() - slot));
         header_.slot_end++;
+
+        // Non-numeric keys should be empty-constructed
+        if (!std::is_integral<Key>::value && !std::is_floating_point<Key>::value) {
+            new (&slots_[slot]) Key;
+        }
+
         return true;
     }
 
