@@ -192,8 +192,9 @@ public:
     /** \brief Encodes a given value into a given address using the assignment operator */
     static char* encode(const T& value, char* dest)
     {
-        T* value_p = reinterpret_cast<T*>(dest);
-        *value_p = value;
+        new (dest) T {value};
+        // T* value_p = reinterpret_cast<T*>(dest);
+        // *value_p = value;
         return dest + sizeof(T);
     }
 
