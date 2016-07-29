@@ -7,3 +7,6 @@ set(bench_SRCS
 )
 
 add_executable(bench ${bench_SRCS})
+target_link_libraries(bench
+    pthread
+)

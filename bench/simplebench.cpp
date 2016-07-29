@@ -19,152 +19,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <cstring>
-#include <chrono>
-#include <map>
-#include <random>
+#include "simplebench.h"
 
-#include "slot_array.h"
-#include "encoding.h"
-#include "search.h"
-#include "kv_array.h"
-#include "node.h"
-#include "node_mgr.h"
-#include "pointers.h"
-#include "btree_level.h"
-#include "btree_static.h"
-#include "btree_adoption.h"
-
-constexpr size_t DftArrayBytes = 4096;
-constexpr size_t DftAlignment = 8;
-
-template<class PMNK_Type>
-using SArray = foster::SlotArray<PMNK_Type, DftArrayBytes, DftAlignment>;
-
-template<class K, class V>
-using KVArray = foster::KeyValueArray<K, V,
-      SArray<uint16_t>,
-      foster::BinarySearch<SArray<uint16_t>>,
-      foster::CompoundEncoder<foster::AssignmentEncoder<K>, foster::AssignmentEncoder<V>, uint16_t>
-      // foster::DefaultEncoder<K, V, uint16_t>
->;
-
-template<class K, class V>
-using KVArrayNoPMNK = foster::KeyValueArray<K, V,
-      SArray<K>,
-      foster::BinarySearch<SArray<K>>,
-      foster::CompoundEncoder<foster::AssignmentEncoder<K>, foster::AssignmentEncoder<V>, K>
-      // foster::DefaultEncoder<K, V, K>
->;
-
-template<class K, class V>
-using BTNode = foster::BtreeNode<K, V,
-    KVArray,
-    foster::PlainPtr,
-    unsigned
->;
-
-template<class K, class V>
-using BTNodeNoPMNK = foster::BtreeNode<K, V,
-    KVArrayNoPMNK,
-    foster::PlainPtr,
-    unsigned
->;
-
-template<class Node>
-using NodeMgr = foster::BtreeNodeManager<Node, foster::AtomicCounterIdGenerator<unsigned>>;
-
-template<class K, class V, unsigned L>
-using BTLevel = foster::BtreeLevel<
-    K, V, L,
-    BTNode,
-    foster::EagerAdoption,
-    NodeMgr
->;
-
-template<class K, class V, unsigned L>
-using BTLevelNoPMNK = foster::BtreeLevel<
-    K, V, L,
-    BTNodeNoPMNK,
-    foster::EagerAdoption,
-    NodeMgr
->;
-
-template<class K, class V, unsigned L>
-using SBtree = foster::StaticBtree<K, V, L, BTLevel>;
-
-template<class K, class V, unsigned L>
-using SBtreeNoPMNK = foster::StaticBtree<K, V, L, BTLevelNoPMNK>;
-
-template<class T> T convert(int n) { return static_cast<T>(n); }
-
-template<> string convert(int n)
-{
-    return "keyvalue_" + std::to_string(n);
-}
-
-class Stopwatch
-{
-public:
-    Stopwatch() { reset(); }
-
-    void reset()
-    {
-        start = std::chrono::system_clock::now();
-    }
-
-    void dump(string name, string op, int count)
-    {
-        auto end = std::chrono::system_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-        std::cout << "[" << name << "]\t" << op << "s: " << count
-            << "\truntime_in_sec: " << elapsed.count() / 1000000.0
-            << "\tusec_per_" << op << ": " << (float) elapsed.count() / count
-            << std::endl;
-
-        reset();
-    }
-
-private:
-    std::chrono::system_clock::time_point start;
-};
-
-template<class Tree, class K, class V>
-struct Insert {
-    void operator()(Tree& tree, int i)
-    {
-        tree.put(convert<K>(i), convert<V>(i));
-    }
-};
-
-template<class K, class V>
-struct Insert<std::map<K,V>, K, V> {
-    void operator()(std::map<K, V>& map, int i)
-    {
-        map[convert<K>(i)] =  convert<V>(i);
-    }
-};
-
-template<class Tree, class K, class V>
-struct Lookup {
-    V operator()(Tree& tree, int i)
-    {
-        V value;
-        tree.get(convert<K>(i), value);
-        return value;
-    }
-};
-
-template<class K, class V>
-struct Lookup<std::map<K,V>, K, V> {
-    V operator()(std::map<K, V>& map, int i)
-    {
-        return map[convert<K>(i)];
-    }
-};
+namespace foster {
 
 template<template<class,class,unsigned> class Btree, unsigned Levels, class K, class V>
-void run(int count)
+void compare_with_std_map(int count)
 {
     static_assert(Levels > 0, "Levels must be > 0");
 
@@ -203,15 +63,67 @@ void run(int count)
     }
 }
 
+template<template<class,class,unsigned> class Btree, unsigned Levels, class K, class V>
+void concurrent_test(int num_threads, int count)
+{
+    Btree<K, V, Levels-1> tree;
+
+    auto f = [&tree,count] (uint32_t mask) {
+        int inserted = 0;
+
+        std::mt19937 rng;
+        std::uniform_int_distribution<int> gen(0, count);
+
+        Insert<Btree<K, V, Levels-1>, K, V> insert;
+        Lookup<Btree<K, V, Levels-1>, K, V> lookup;
+
+        try {
+            while (inserted < count) {
+                int k = gen(rng);
+                // insert/lookup with 50% chance
+                if (k % 2 == 0) {
+                    insert(tree, inserted | mask);
+                    inserted++;
+                }
+                else {
+                    lookup(tree, k | mask);
+                }
+            }
+        }
+        catch (std::runtime_error& e) {
+            std::cerr << "oops..." << std::endl;
+            std::terminate();
+        }
+    };
+
+    std::vector<std::thread> threads;
+    Stopwatch sw;
+
+    for (int i = 0; i < num_threads; i++) {
+        threads.emplace_back(f, i << 24);
+    }
+    for (int i = 0; i < num_threads; i++) {
+        threads[i].join();
+    }
+
+    sw.dump("foster", "operation", count * num_threads);
+}
+
+
+} // namespace foster
+
 int main(int, char**)
 {
     int max = 1000000;
     std::cout << "=== Integer keys, no PMNK ===" << std::endl;
-    run<SBtreeNoPMNK, 3, int, int>(max);
+    foster::compare_with_std_map<foster::SBtreeNoPMNK, 3, int, int>(max);
 
-    std::cout << "=== String keys, no PMNK ===" << std::endl;
-    run<SBtreeNoPMNK, 3, string, string>(max);
+    // std::cout << "=== String keys, no PMNK ===" << std::endl;
+    // foster::compare_with_std_map<foster::SBtreeNoPMNK, 3, string, string>(max);
 
-    std::cout << "=== String keys, with PMNK ===" << std::endl;
-    run<SBtree, 3, string, string>(max);
+    // std::cout << "=== String keys, with PMNK ===" << std::endl;
+    // foster::compare_with_std_map<foster::SBtree, 3, string, string>(max);
+
+    int num_threads = 2;
+    foster::concurrent_test<foster::SBtreeNoPMNK, 3, int, int>(num_threads, max/num_threads);
 }

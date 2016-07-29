@@ -32,6 +32,7 @@ SET(CMAKE_CXX_FLAGS_PROFILE "-O3 -g -pg -finline-functions -DDEBUG_LEVEL=0 -DNDE
 SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -fexpensive-optimizations -finline-functions -DDEBUG_LEVEL=0")
 SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g ${CMAKE_CXX_FLAGS_RELEASE}")
 
+list(APPEND CMAKE_CXX_FLAGS "-pthread")
 # -pedantic requires -Wno-long-long
 SET (ALWAYS_FLAGS "-std=c++11 -Wall -Wextra -Woverloaded-virtual -fno-strict-aliasing -Wpointer-arith")
 SET (YES_INLINE_FLAGS "-finline-functions")
