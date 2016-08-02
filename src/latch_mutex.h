@@ -50,7 +50,7 @@ public:
 
     bool attempt_read()
     {
-        unsigned old_value = counter_;
+        unsigned old_value = counter_.load();
         if (has_writer(old_value)) { return false; }
         if (!counter_.compare_exchange_weak(old_value, old_value + READER_MASK)) { return false; }
 
@@ -62,7 +62,7 @@ public:
     {
         if(!attempt_read()) {
             {
-                std::unique_lock<std::mutex>(mutex_);
+                std::lock_guard<std::mutex> lck{mutex_};
                 add_when_writer_leaves(READER_MASK);
             }
             std::atomic_thread_fence(std::memory_order_acquire);
@@ -78,7 +78,7 @@ public:
 
     bool attempt_write(unsigned expected_previous = 0)
     {
-        if (counter_ != expected_previous) { return false; }
+        if (counter_.load() != expected_previous) { return false; }
         if (!mutex_.try_lock()) { return false; }
 
         bool success = counter_.compare_exchange_weak(expected_previous, WRITER_MASK);
@@ -90,7 +90,7 @@ public:
 
     void acquire_write()
     {
-        std::unique_lock<std::mutex>(mutex_);
+        std::lock_guard<std::mutex> lck{mutex_};
         add_when_writer_leaves(WRITER_MASK);
         assert<1>(has_writer());
 
@@ -103,7 +103,7 @@ public:
     void release_write()
     {
         std::atomic_thread_fence(std::memory_order_release);
-        assert<1>(counter_ == WRITER_MASK);
+        assert<1>(counter_.load() == WRITER_MASK);
         counter_ = 0;
     }
 
@@ -123,12 +123,12 @@ public:
 
     bool has_reader()
     {
-        return counter_ & ~WRITER_MASK;
+        return counter_.load() & ~WRITER_MASK;
     }
 
     bool has_writer()
     {
-        return counter_ & WRITER_MASK;
+        return counter_.load() & WRITER_MASK;
     }
 
 private:
