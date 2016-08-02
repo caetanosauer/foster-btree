@@ -106,7 +106,7 @@ void concurrent_test(int num_threads, int count)
         threads[i].join();
     }
 
-    sw.dump("foster", "operation", count * num_threads);
+    sw.dump("foster_" + std::to_string(num_threads), "operation", count * num_threads);
 }
 
 
@@ -115,8 +115,8 @@ void concurrent_test(int num_threads, int count)
 int main(int, char**)
 {
     int max = 1000000;
-    std::cout << "=== Integer keys, no PMNK ===" << std::endl;
-    foster::compare_with_std_map<foster::SBtreeNoPMNK, 3, int, int>(max);
+    // std::cout << "=== Integer keys, no PMNK ===" << std::endl;
+    // foster::compare_with_std_map<foster::SBtreeNoPMNK, 3, int, int>(max);
 
     // std::cout << "=== String keys, no PMNK ===" << std::endl;
     // foster::compare_with_std_map<foster::SBtreeNoPMNK, 3, string, string>(max);
@@ -124,6 +124,8 @@ int main(int, char**)
     // std::cout << "=== String keys, with PMNK ===" << std::endl;
     // foster::compare_with_std_map<foster::SBtree, 3, string, string>(max);
 
-    int num_threads = 2;
-    foster::concurrent_test<foster::SBtreeNoPMNK, 3, int, int>(num_threads, max/num_threads);
+    for (int i = 1; i <= 8; i++) {
+        int num_threads = i;
+        foster::concurrent_test<foster::SBtreeNoPMNK, 3, int, int>(num_threads, max/num_threads);
+    }
 }
