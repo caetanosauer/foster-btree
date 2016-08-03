@@ -85,7 +85,7 @@ template <
     class IdType,
     class Latch = DummyLatch
 >
-class BtreeNode : public KeyValueArray<K, V>
+class BtreeNode : public KeyValueArray<K, V>, public Latch
 {
 public:
 
@@ -104,26 +104,6 @@ public:
     static constexpr bool LatchingEnabled = !std::is_same<Latch, DummyLatch>::value;
 
     /**
-     * Metadata for a node is maintained in the header, which is stored in the end of the payload
-     * area of the underlying slot array. Currently, such metadata includes the node ID, which is
-     * not used internally except for setting it in the constructor, and the pointer to the payload
-     * containing the fenster object, which must be accessed every time we read or write the fence
-     * and foster keys or the foster pointer.
-     *
-     * It inherits from Latch instead of including it as a member because it allows for the empty
-     * base optimization, i.e., if the latch class is empty, no extra space is occupied.
-     */
-    // Adding "0+" to get around bug in gcc versions < 4.9
-    struct alignas(0+KeyValueArray<K, V>::Alignment) HeaderData
-        : public Latch
-    {
-        IdType id;
-        PayloadPtr fenster_ptr;
-
-        HeaderData() : fenster_ptr(0) {}
-    };
-
-    /**
      * \brief Constructs an empty node with a given ID
      *
      * Initializes header data and the fenster object with empty keys. All this data is kept on
@@ -135,23 +115,15 @@ public:
      * turn, only occupies the space of its underlying SlotArray.
      */
     BtreeNode(IdType id = IdType{0})
+        : id_(id)
     {
-        header().id = id;
-
-        // Allocate payload for header (see header()) and initialize it
-        PayloadPtr ptr;
-        bool allocated = this->allocate_payload(ptr, sizeof(HeaderData));
-        assert<1>(allocated);
-
-        void* hdr_location = this->get_payload(ptr);
-        new (hdr_location) HeaderData;
-        assert<1>(hdr_location == header_ptr());
-
+        PayloadPtr ptr {0};
         // Fence and foster keys and foster child are initially empty (i.e., nullptr)
         size_t fenster_length = FensterType::compute_size(nullptr, nullptr, nullptr);
-        allocated = this->allocate_payload(ptr, fenster_length);
+        bool allocated = this->allocate_payload(ptr, fenster_length);
         assert<1>(allocated);
-        header().fenster_ptr = ptr;
+
+        fenster_ptr_ = ptr;
         new (this->get_payload(ptr)) FensterType {nullptr, nullptr, nullptr, NodePointer{nullptr}};
     }
 
@@ -353,15 +325,8 @@ public:
     /** @name Convenience methods to access header and fenster data **/
     /**@{**/
 
-    /*
-     * Since this class is not supposed to have any member variables (so that the space it occupies
-     * is exactly what the user specifies in TotalBytes), header data is stored in the payload
-     * region of the underlying slot array (which is hidden behind KeyValueArray).
-     */
-    HeaderData& header() const { return *(header_ptr()); }
-
-    /// \brief Convenience method to get node ID from the header
-    IdType id() const { return header().id; }
+    /// \brief Convenience method to get node ID
+    IdType id() const { return id_; }
 
     void get_fence_keys(KeyType* low, KeyType* high) const
     {
@@ -389,54 +354,6 @@ public:
 
     /**@}**/
 
-    /** @name Convenience methods to access latch **/
-    /**@{**/
-
-    void acquire_write()
-    {
-        if (LatchingEnabled) { header().acquire_write(); }
-    }
-
-    void acquire_read()
-    {
-        if (LatchingEnabled) { header().acquire_read(); }
-    }
-
-    void release_write()
-    {
-        if (LatchingEnabled) { header().release_write(); }
-    }
-
-    void release_read()
-    {
-        if (LatchingEnabled) { header().release_read(); }
-    }
-
-    bool attempt_upgrade()
-    {
-        if (LatchingEnabled) { return header().attempt_upgrade(); }
-        return false;
-    }
-
-    void downgrade()
-    {
-        if (LatchingEnabled) { header().downgrade(); }
-    }
-
-    bool has_reader()
-    {
-        if (LatchingEnabled) { return header().has_reader(); }
-        return false;
-    }
-
-    bool has_writer()
-    {
-        if (LatchingEnabled) { return header().has_writer(); }
-        return false;
-    }
-
-    /**@}**/
-
     /// Debugging/testing method to verify node's state
     bool is_consistent()
     {
@@ -455,12 +372,12 @@ protected:
 
     FensterType* get_fenster()
     {
-        return reinterpret_cast<FensterType*>(this->get_payload(header().fenster_ptr));
+        return reinterpret_cast<FensterType*>(this->get_payload(fenster_ptr_));
     }
 
     const FensterType* get_fenster() const
     {
-        return reinterpret_cast<const FensterType*>(this->get_payload(header().fenster_ptr));
+        return reinterpret_cast<const FensterType*>(this->get_payload(fenster_ptr_));
     }
 
     /**
@@ -473,7 +390,7 @@ protected:
         size_t current_length = this->get_payload_count(get_fenster()->get_size());
         size_t new_length = this->get_payload_count(FensterType::compute_size(low, high, foster));
 
-        PayloadPtr& ptr = header().fenster_ptr;
+        PayloadPtr& ptr = fenster_ptr_;
         if (new_length != current_length) {
             int diff = current_length - new_length;
             PayloadPtr first = this->get_first_payload();
@@ -489,15 +406,8 @@ protected:
 
 private:
 
-    /// Helper method for header()
-    HeaderData* header_ptr() const
-    {
-        // Yeah, it's ugly, but it's low-level code.
-        // The assertion in the constuctor makes sure it works.
-        char* this_addr = const_cast<char*>(reinterpret_cast<const char*>(this));
-        void* hdr_location = this_addr + sizeof(*this) - sizeof(HeaderData);
-        return reinterpret_cast<HeaderData*>(hdr_location);
-    }
+    IdType id_;
+    PayloadPtr fenster_ptr_;
 };
 
 } // namespace foster
