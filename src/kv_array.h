@@ -39,8 +39,8 @@ namespace foster {
 
 // Forward declaration for friend function declaration below
 namespace internal {
-    template<class T, class S>
-    bool move_kv_records(T&, S, T&, S, size_t);
+    template<class T1, class T2, class S>
+    bool move_kv_records(T1&, S, T2&, S, size_t);
 }
 
 /**
@@ -317,8 +317,8 @@ protected:
      * like the STL sort function, which works on arbitrary data structures and is a separate
      * function.
      */
-    template<class T, class S>
-    friend bool internal::move_kv_records(T&, S, T&, S, size_t);
+    template<class T1, class T2, class S>
+    friend bool internal::move_kv_records(T1&, S, T2&, S, size_t);
 
 public:
 
@@ -380,14 +380,15 @@ namespace internal {
  * individual movements fails (possibliy due to lack of free space on destination) then the whole
  * movement is "rolled back" by reinserting the already-moved pairs into the source array.
  */
-template <class KVArray, class SlotNumber = typename KVArray::SlotNumber>
+template <class KVArrayDest, class KVArraySrc,
+         class SlotNumber = typename KVArrayDest::SlotNumber>
 bool move_kv_records(
-        KVArray& dest, SlotNumber dest_slot,
-        KVArray& src, SlotNumber src_slot,
+        KVArrayDest& dest, SlotNumber dest_slot,
+        KVArraySrc& src, SlotNumber src_slot,
         size_t slot_count)
 {
-    using Encoder = typename KVArray::EncoderType;
-    using PayloadPtr = typename KVArray::PayloadPtr;
+    using Encoder = typename KVArrayDest::EncoderType;
+    using PayloadPtr = typename KVArrayDest::PayloadPtr;
 
     SlotNumber last_slot = src_slot + slot_count - 1;
     assert<1>(last_slot < src.slot_count());

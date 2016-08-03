@@ -157,7 +157,7 @@ TEST(TestSplit, SimpleSplit)
     ASSERT_TRUE(node2.is_high_key_infinity());
     ASSERT_TRUE(node.get_foster_child() == NodePointer(&node2));
 
-    node.rebalance_foster_child();
+    node.rebalance_foster_child<NodePointer>();
     EXPECT_TRUE(!node.is_foster_empty());
     string key;
     node.get_foster_key(&key);
@@ -172,11 +172,11 @@ TEST(TestSplit, SimpleSplit)
     node2.insert("key6", "value_______6");
     BTNode<string, string> node3;
     node2.add_foster_child(NodePointer(&node3));
-    node2.rebalance_foster_child();
+    node2.rebalance_foster_child<NodePointer>();
 
     BTNode<string, string> node4;
     node2.add_foster_child(NodePointer(&node4));
-    node2.rebalance_foster_child();
+    node2.rebalance_foster_child<NodePointer>();
 }
 
 TEST(TestSplit, SimpleSplitWithoutPMNK)
@@ -200,7 +200,7 @@ TEST(TestSplit, SimpleSplitWithoutPMNK)
     ASSERT_TRUE(node2.is_high_key_infinity());
     ASSERT_TRUE(node.get_foster_child() == NodePointer(&node2));
 
-    node.rebalance_foster_child();
+    node.rebalance_foster_child<NodePointer>();
     EXPECT_TRUE(!node.is_foster_empty());
     int key;
     node.get_foster_key(&key);
@@ -215,11 +215,11 @@ TEST(TestSplit, SimpleSplitWithoutPMNK)
     node2.insert(6, 6000);
     BTNodeNoPMNK<int, int> node3;
     node2.add_foster_child(NodePointer(&node3));
-    node2.rebalance_foster_child();
+    node2.rebalance_foster_child<NodePointer>();
 
     BTNodeNoPMNK<int, int> node4;
     node2.add_foster_child(NodePointer(&node4));
-    node2.rebalance_foster_child();
+    node2.rebalance_foster_child<NodePointer>();
 }
 
 TEST(TestPrefixTruncation, SimpleTruncation)
@@ -240,7 +240,7 @@ TEST(TestPrefixTruncation, SimpleTruncation)
 
     BTNodeTrunc<int> node2;
     node.add_foster_child(NodePointer{&node2});
-    node.rebalance_foster_child();
+    node.rebalance_foster_child<NodePointer>();
 
     node2.insert("longkeyprefixV", 90);
     node2.insert("longkeyprefixW", 91);
@@ -250,7 +250,7 @@ TEST(TestPrefixTruncation, SimpleTruncation)
 
     BTNodeTrunc<int> node3;
     node2.add_foster_child(NodePointer{&node3});
-    node2.rebalance_foster_child();
+    node2.rebalance_foster_child<NodePointer>();
 
     // At this point, unlinking the foster child of node 2 should adjust its fence keys to:
     // low = longkeyprefix5 and high = longkeyprefix90

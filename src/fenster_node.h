@@ -65,28 +65,18 @@ namespace foster {
  * \tparam K Key type
  * \tparam V Value type
  * \tparam KeyValueArray Key-value array clas template, parametrized only by key and value types
- * \tparam Pointer Class template for the type of the foster child pointer (\see pointers.h)
- * \tparam IdType Type to be used as node identifier (usually some integer type)
  */
-template <
-    class K,
-    class V,
-    template <class,class> class KeyValueArray,
-    template <class> class Pointer
->
-class FensterNode : public KeyValueArray<K, V>
+template <class KeyValueArray>
+class FensterNode : public KeyValueArray
 {
 public:
 
     // Type aliases for convenience and external access
-    using ThisType = FensterNode<K, V, KeyValueArray, Pointer>;
-    using NodePointer = Pointer<ThisType>;
-    using KeyType = K;
-    using ValueType = V;
-    using SlotNumber = typename KeyValueArray<K, V>::SlotNumber;
-    using PayloadPtr = typename KeyValueArray<K, V>::PayloadPtr;
+    using ThisType = FensterNode<KeyValueArray>;
+    using KeyType = typename KeyValueArray::KeyType;
+    using SlotNumber = typename KeyValueArray::SlotNumber;
+    using PayloadPtr = typename KeyValueArray::PayloadPtr;
     using FensterType = Fenster<KeyType>;
-    template <class T> using PointerType = Pointer<T>;
 
     /**
      * \brief Constructs an empty node with a given ID
@@ -180,6 +170,7 @@ public:
      * This method uses the move_kv_records function template to move key-value pairs from one
      * key-value array to another.
      */
+    template <class Ptr>
     bool rebalance_foster_child()
     {
         // TODO support different policies for picking the split key
@@ -195,7 +186,7 @@ public:
         this->read_slot(split_slot, &split_key, nullptr);
 
         // STEP 2: move records
-        NodePointer child;
+        Ptr child;
         get_foster_child(child);
         bool moved = internal::move_kv_records(*child, SlotNumber(0), *this, split_slot,
                 slot_count - split_slot);
@@ -245,7 +236,7 @@ public:
     void split(Ptr new_node)
     {
         add_foster_child(new_node);
-        bool rebalanced = rebalance_foster_child();
+        bool rebalanced = rebalance_foster_child<Ptr>();
         assert<1>(rebalanced, "Could not rebalance records into new foster child");
     }
 

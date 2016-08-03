@@ -83,7 +83,7 @@ template <
     class IdType,
     class Latch = DummyLatch
 >
-class BtreeNode : public FensterNode<K, V, KeyValueArray, Pointer>, public Latch
+class BtreeNode : public FensterNode<KeyValueArray<K, V>>, public Latch
 {
 public:
 
