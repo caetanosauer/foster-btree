@@ -154,8 +154,12 @@ public:
 
             // If current branch does not contain the key, it must be in a foster child
             if (!branch->key_range_contains(key)) {
-                NodePointer foster = branch->get_foster_child();
+                // TODO cannot convert from base pointer to derived pointer
+                // TODO level class should not know about existence of foster child
+                NodePointer foster;
+                branch->get_foster_child(foster);
                 assert<1>(foster);
+
                 foster->acquire_read();
                 branch->release_read();
                 branch = foster;
@@ -186,7 +190,9 @@ public:
         // Now we found the target child node, but key may be somewhere in the foster chain
         assert<1>(child->fence_contains(key));
         while (child && !child->key_range_contains(key)) {
-            ChildPointer foster = child->get_foster_child();
+            ChildPointer foster;
+            child->get_foster_child(foster);
+
             latch_pointer(foster, for_update);
             unlatch_pointer(child, for_update);
             child = foster;

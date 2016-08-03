@@ -41,6 +41,38 @@ public:
 
     explicit PlainPtr(T* p = nullptr) : ptr_(p) {}
 
+    template <typename OtherT, typename = typename
+        std::enable_if<std::is_convertible<OtherT*, T*>::value>::type>
+    PlainPtr(const PlainPtr<OtherT>& other)
+        : PlainPtr<T>(other)
+    {}
+
+    template <typename OtherT, typename = typename
+        std::enable_if<std::is_convertible<OtherT*, T*>::value>::type>
+    PlainPtr(const PlainPtr<OtherT>&& other)
+        : PlainPtr<T>(std::move(other))
+    {}
+
+    template <typename OtherT>
+    PlainPtr& operator=(const PlainPtr<OtherT>& other)
+    {
+        this->ptr_ = other.ptr_;
+        return *this;
+    }
+
+    template <typename OtherT>
+    PlainPtr& operator=(const PlainPtr<OtherT>&& other)
+    {
+        this->ptr_ = std::move(other.ptr_);
+        return *this;
+    }
+
+    PlainPtr& operator=(void* raw_ptr)
+    {
+        this->ptr_ = reinterpret_cast<T*>(raw_ptr);
+        return *this;
+    }
+
     operator bool() const { return ptr_; }
     T* operator->() const { return ptr_; }
     T& operator*() const { return *ptr_; }

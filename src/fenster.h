@@ -51,9 +51,8 @@ namespace foster {
  * for "window", which is appropriate given that such an object provides a peek into a node's data.
  *
  * \tparam Key Type of keys.
- * \tparam PointerType Type of the child foster pointer.
  */
-template <class Key, class PointerType>
+template <class Key>
 class Fenster
 {
 public:
@@ -67,7 +66,7 @@ public:
      * fence, positive for the high fence, and either of them for the foster key (because in either
      * case the foster child would be empty).
      */
-    Fenster(Key* low, Key* high, Key* foster, PointerType foster_ptr)
+    Fenster(Key* low, Key* high, Key* foster, void* foster_ptr)
         : foster_ptr(foster_ptr)
     {
         is_low_key_infinity_ = false;
@@ -92,12 +91,12 @@ public:
      */
     static size_t compute_size(Key*, Key*, Key*)
     {
-        return sizeof(Fenster<Key, PointerType>);
+        return sizeof(Fenster<Key>);
     }
 
     size_t get_size() const
     {
-        return sizeof(Fenster<Key, PointerType>);
+        return sizeof(Fenster<Key>);
     }
 
     size_t get_prefix_size() const { return 0; }
@@ -116,13 +115,16 @@ public:
     bool is_high_key_infinity() const { return is_high_key_infinity_; }
     bool is_foster_empty() const { return is_foster_empty_; }
 
-    PointerType get_foster_ptr() const { return foster_ptr; }
+    template<class Ptr>
+    void get_foster_ptr(Ptr& ptr) const { ptr = foster_ptr; }
+
+    void* get_foster_ptr() const { return foster_ptr; }
 
 protected:
     Key low_fence;
     Key high_fence;
     Key foster_key;
-    PointerType foster_ptr;
+    void* foster_ptr;
 
     // Explicit flags are required to determine if the keys are infinity and if a foster pointer is
     // valid or not.
@@ -164,8 +166,8 @@ protected:
  *
  * \tparam PointerType Type of the child foster pointer.
  */
-template <class PointerType>
-class Fenster<string, PointerType>
+template <>
+class Fenster<string>
 {
 public:
 
@@ -179,7 +181,7 @@ public:
      *
      * \see compute_size
      */
-    Fenster(string* low, string* high, string* foster, PointerType foster_ptr)
+    Fenster(string* low, string* high, string* foster, void* foster_ptr)
         : foster_ptr(foster_ptr)
     {
         string empty_key {""};
@@ -218,7 +220,7 @@ public:
     /// \brief Returns total number of bytes occupied by object and encoded keys in the offload area
     size_t get_size() const
     {
-        return sizeof(Fenster<string, PointerType>)
+        return sizeof(Fenster<string>)
             + prefix_len + low_fence_len + high_fence_len + foster_key_len;
     }
 
@@ -233,7 +235,7 @@ public:
         if (!foster) { foster = &empty_key; }
 
         size_t prefix_len = get_common_prefix_length(*low, *high);
-        size_t result = sizeof(Fenster<string, PointerType>) + low->length() + high->length()
+        size_t result = sizeof(Fenster<string>) + low->length() + high->length()
             - prefix_len;
 
         // If foster child is not empty, foster key is also prefixed and size must be adjusted
@@ -290,7 +292,10 @@ public:
         prefix.assign(get_data_offset(), prefix_len);
     }
 
-    PointerType get_foster_ptr () const { return foster_ptr; }
+    template<class Ptr>
+    void get_foster_ptr(Ptr& ptr) const { ptr = foster_ptr; }
+
+    void* get_foster_ptr() const { return foster_ptr; }
 
     /**
      * The infinity keys are encoded simply as empty strings. Note that the user can still use an
@@ -314,17 +319,17 @@ protected:
     LengthType low_fence_len;
     LengthType high_fence_len;
     LengthType foster_key_len;
-    PointerType foster_ptr;
+    void* foster_ptr;
 
     /// \brief Return pointer to the offload area, where keys are encoded.
     char* get_data_offset()
     {
-        return reinterpret_cast<char*>(this) + sizeof(Fenster<string, PointerType>);
+        return reinterpret_cast<char*>(this) + sizeof(Fenster<string>);
     }
 
     const char* get_data_offset() const
     {
-        return reinterpret_cast<const char*>(this) + sizeof(Fenster<string, PointerType>);
+        return reinterpret_cast<const char*>(this) + sizeof(Fenster<string>);
     }
 };
 

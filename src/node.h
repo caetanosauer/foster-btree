@@ -34,10 +34,8 @@ using std::string;
 #include "assertions.h"
 #include "exceptions.h"
 
-// TODO: Fenster object and move_kv_records function are currently not parametrized, so we must
-// include the headers here.
-#include "fenster.h"
-#include "kv_array.h"
+// TODO: Fenster node currently not parametrized
+#include "fenster_node.h"
 
 namespace foster {
 
@@ -85,7 +83,7 @@ template <
     class IdType,
     class Latch = DummyLatch
 >
-class BtreeNode : public KeyValueArray<K, V>, public Latch
+class BtreeNode : public FensterNode<K, V, KeyValueArray, Pointer>, public Latch
 {
 public:
 
@@ -98,316 +96,48 @@ public:
     using ValueType = V;
     using SlotNumber = typename KeyValueArray<K, V>::SlotNumber;
     using PayloadPtr = typename KeyValueArray<K, V>::PayloadPtr;
-    using FensterType = Fenster<KeyType, NodePointer>;
     template <class T> using PointerType = Pointer<T>;
 
     static constexpr bool LatchingEnabled = !std::is_same<Latch, DummyLatch>::value;
 
     /**
      * \brief Constructs an empty node with a given ID
-     *
-     * Initializes header data and the fenster object with empty keys. All this data is kept on
-     * payloads in the end of the underlying slot array. Such payloads are allocated only once,
-     * right here, and any further changes require invoking shift_payloads.
-     *
-     * A destructor is not necessary because this class does not have any explicit member variables,
-     * i.e., it does not occupy any extra space other than the underlying KeyValueArray, which, in
-     * turn, only occupies the space of its underlying SlotArray.
      */
     BtreeNode(IdType id = IdType{0})
         : id_(id)
     {
-        PayloadPtr ptr {0};
-        // Fence and foster keys and foster child are initially empty (i.e., nullptr)
-        size_t fenster_length = FensterType::compute_size(nullptr, nullptr, nullptr);
-        bool allocated = this->allocate_payload(ptr, fenster_length);
-        assert<1>(allocated);
-
-        fenster_ptr_ = ptr;
-        new (this->get_payload(ptr)) FensterType {nullptr, nullptr, nullptr, NodePointer{nullptr}};
     }
 
-    /** @name Methods for management of foster relationship **/
-    /**@{**/
+    /// \brief Convenience method to get node ID
+    IdType id() const { return id_; }
 
-    /**
-     * \brief Adds the given node as a foster child.
-     *
-     * If this node already has a foster child, given node adopts it as its own foster child, so
-     * that the new node is inserted in-between the current node and the old foster child.
-     *
-     * The given node must be empty, i.e., contain zero slots and have no foster child of its own.
-     */
-    void add_foster_child(NodePointer child)
+    template <class Ptr>
+    Ptr split_for_insertion(const KeyType& new_key, Ptr new_node)
     {
-        assert<1>(child, "Invalid node pointer in set_foster_child");
-        if (child->slot_count() > 0 || child->get_foster_child()) {
-            throw InvalidFosterChildException<IdType>(child->id(), id(),
-                "Only an empty node can be added as a foster child");
-        }
-
-        // Foster key is equal to high key of parent, which is equal to both fence keys on child
-        KeyType low_key, high_key;
-        get_fence_keys(&low_key, &high_key);
-        KeyType* low_ptr = is_low_key_infinity() ? nullptr : &low_key;
-        KeyType* high_ptr = is_high_key_infinity() ? nullptr : &high_key;
-
-        // Initialize new child's fenster with equal fence keys and move foster pointer & key
-        KeyType old_foster_key;
-        get_foster_key(&old_foster_key);
-        KeyType* old_foster_key_ptr = is_foster_empty() ? nullptr : &old_foster_key;
-        NodePointer old_foster_child = get_foster_child();
-        bool success = child->update_fenster(high_ptr, high_ptr, old_foster_key_ptr, old_foster_child);
-        assert<1>(success, "Keys will not fit into new empty foster child");
-
-        // A newly inserted foster child is always empty, which means the foster key is the same as
-        // the high key. In that case, we use an empty key (nullptr). This allows adding an empty
-        // foster child without having to allocate more space for the foster key. This way, we make
-        // sure that an empty foster child can always be added to an overflown node.
-        success = update_fenster(low_ptr, high_ptr, nullptr, child);
-        assert<1>(success, "No space left to add foster child");
-    }
-
-    /**
-     * \brief Resets the foster child pointer to null.
-     */
-    void unlink_foster_child()
-    {
-        if (!get_foster_child()) { return; }
-
-        KeyType low_key, high_key, foster_key;
-        get_fence_keys(&low_key, &high_key);
-        get_foster_key(&foster_key);
-        KeyType* low_ptr = is_low_key_infinity() ? nullptr : &low_key;
-        KeyType* high_ptr = is_high_key_infinity() ? nullptr : &high_key;
-        // If foster child was empty, foster key is not stored and is equal to the high fence key
-        KeyType* foster_key_ptr = is_foster_empty() ? high_ptr : &foster_key;
-
-        // The old foster key becomes the new high fence key
-        bool success = update_fenster(low_ptr, foster_key_ptr, nullptr, NodePointer{nullptr});
-        assert<1>(success && !get_foster_child(), "Unable to unlink foster child");
-    }
-
-    /**
-     * \brief Rebalances records between this node and its foster child.
-     *
-     * This operation supports a node split by moving (roughly) half of the records from this node
-     * into its foster child. It is the first step of a complete node split -- the adoption by the
-     * parent being the second one.
-     *
-     * This method uses the move_kv_records function template to move key-value pairs from one
-     * key-value array to another.
-     */
-    bool rebalance_foster_child()
-    {
-        // TODO support different policies for picking the split key
-        // (pick middle key, divide by total payload size, suffix compression, etc.)
-        // e.g., template <class RebalancePolicy = void>
-
-        // TODO support merge and node deletion, i.e., rebalance in the opposite direction
-
-        // STEP 1: determine split key
-        SlotNumber slot_count = this->slot_count();
-        SlotNumber split_slot = slot_count / 2;
-        KeyType split_key;
-        this->read_slot(split_slot, &split_key, nullptr);
-
-        // STEP 2: move records
-        NodePointer child = get_foster_child();
-        bool moved = internal::move_kv_records(*child, SlotNumber(0), *this, split_slot,
-                slot_count - split_slot);
-        if (!moved) { return false; }
-
-        // STEP 3: Adjust foster key
-        KeyType low_key, high_key;
-        get_fence_keys(&low_key, &high_key);
-        KeyType* low_ptr = is_low_key_infinity() ? nullptr : &low_key;
-        KeyType* high_ptr = is_high_key_infinity() ? nullptr : &high_key;
-
-        bool success = update_fenster(low_ptr, high_ptr, &split_key, child);
-        if (!success) { return false; }
-
-        // STEP 4: Adjust fence keys on foster child
-        KeyType childs_foster_key;
-        child->get_foster_key(&childs_foster_key);
-        KeyType* childs_foster_key_ptr = child->is_foster_empty() ? nullptr : &childs_foster_key;
-        success = child->update_fenster(&split_key, high_ptr, childs_foster_key_ptr,
-                child->get_foster_child());
-        if (!success) { return false; }
-
-        assert<3>(this->is_consistent());
-        assert<3>(child->is_consistent());
-
-        return true;
-    }
-
-    /**
-     * \brief Perform a rebalance (split) operation to enable an insertion when the node is full.
-     *
-     * This method is invoked whenever a regular insertion returns false, indicating that there is
-     * no space left to insert the given record. It should be invoked in a while loop, because
-     * multiple splits may be required to enable a single insertion.
-     *
-     * This method is here just for convenience, since all it does is invoke add_foster_child
-     * followed by rebalance_foster_child. After that, it checks the key ranges to determine if
-     * insertion should be retried on this node or its (new) foster child -- this check is the
-     * reason why the key must be given as argument.
-     *
-     * \param[in] key Key which we are trying to insert.
-     * \param[in] neW_node New node to be added as foster child.
-     * \returns Pointer to node on which insertion should be retried (either this node or the new
-     *       foster child).
-     */
-    NodePointer split_for_insertion(const KeyType& key, NodePointer new_node)
-    {
-        // STEP 1: Add a new empty foster child
         new_node->acquire_write();
-        add_foster_child(new_node);
 
-        // STEP 2: Move records into the new foster child using rebalance operation
-        bool rebalanced = rebalance_foster_child();
-        assert<1>(rebalanced, "Could not rebalance records into new foster child");
+        this->split(new_node);
 
-        // STEP 3: Decide if insertion should go into old or new node and return it
-        if (!key_range_contains(key)) {
-            assert<1>(new_node->key_range_contains(key));
+        // Decide if insertion should go into old or new node and return it
+        if (!this->key_range_contains(new_key)) {
+            assert<1>(new_node->key_range_contains(new_key));
             this->release_write();
             return new_node;
         }
         else {
             new_node->release_write();
-            return NodePointer{this};
+            return Ptr{this};
         }
     }
-
-    /**@}**/
-
-    /** @name Methods for keys against fence and foster keys **/
-    /**@{**/
-
-    /// \brief Checks if given key is within the fence borders
-    bool fence_contains(const KeyType& key) const
-    {
-        KeyType low, high;
-        get_fence_keys(&low, &high);
-
-        if (key >= low && key <= high) { return true; }
-
-        // comparison failed, but key may still be contained if one of the keys is infinity
-        if (key >= low && is_high_key_infinity()) { return true; }
-        if (key <= high && is_low_key_infinity()) { return true; }
-        if (is_low_key_infinity() && is_high_key_infinity()) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * \brief Checks if given key is contained in this node.
-     *
-     * This is stricter than fence_contains, because it returns false if the key is not in this node
-     * but in its foster child, whereas the former returns true.
-     */
-    bool key_range_contains(const KeyType& key) const
-    {
-        if (!fence_contains(key)) { return false; }
-        if (!is_foster_empty()) {
-            KeyType foster;
-            get_foster_key(&foster);
-            return key < foster;
-        }
-        return true;
-    }
-
-    /**@}**/
-
-    /** @name Convenience methods to access header and fenster data **/
-    /**@{**/
-
-    /// \brief Convenience method to get node ID
-    IdType id() const { return id_; }
-
-    void get_fence_keys(KeyType* low, KeyType* high) const
-    {
-        get_fenster()->get_keys(low, high, nullptr);
-    }
-
-    void get_foster_key(KeyType* key) const
-    {
-        get_fenster()->get_keys(nullptr, nullptr, key);
-    }
-
-    void get_prefix(KeyType* key) const
-    {
-        get_fenster()->get_keys(nullptr, nullptr, key);
-    }
-
-    NodePointer get_foster_child() const
-    {
-        return get_fenster()->get_foster_ptr();
-    }
-
-    bool is_low_key_infinity() const { return get_fenster()->is_low_key_infinity(); }
-    bool is_high_key_infinity() const { return get_fenster()->is_high_key_infinity(); }
-    bool is_foster_empty() const { return get_fenster()->is_foster_empty(); }
-
-    /**@}**/
 
     /// Debugging/testing method to verify node's state
     bool is_consistent()
     {
-        if (!this->is_sorted()) { return false; }
-
-        KeyType key;
-        auto iter = this->iterate();
-        while (iter.next(&key, nullptr)) {
-            if (!key_range_contains(key)) { return false; }
-        }
-
-        return true;
-    }
-
-protected:
-
-    FensterType* get_fenster()
-    {
-        return reinterpret_cast<FensterType*>(this->get_payload(fenster_ptr_));
-    }
-
-    const FensterType* get_fenster() const
-    {
-        return reinterpret_cast<const FensterType*>(this->get_payload(fenster_ptr_));
-    }
-
-    /**
-     * Method used to update fenster data by constructing a new fenster object in the reserved
-     * payload area. If growing or shrinking is required, SlotArray::shift_payloads is invoked
-     * accordingly and fenster_ptr is updated in the header.
-     */
-    bool update_fenster(KeyType* low, KeyType* high, KeyType* foster, NodePointer foster_ptr)
-    {
-        size_t current_length = this->get_payload_count(get_fenster()->get_size());
-        size_t new_length = this->get_payload_count(FensterType::compute_size(low, high, foster));
-
-        PayloadPtr& ptr = fenster_ptr_;
-        if (new_length != current_length) {
-            int diff = current_length - new_length;
-            PayloadPtr first = this->get_first_payload();
-            bool shifted = this->shift_payloads(first + diff, first, ptr - first);
-            if (!shifted) { return false; }
-            ptr = ptr + diff;
-        }
-
-        new (this->get_payload(ptr)) FensterType {low, high, foster, foster_ptr};
-        assert<3>(this->is_consistent());
-        return true;
+        return this->is_sorted() && this->all_keys_in_range();
     }
 
 private:
-
     IdType id_;
-    PayloadPtr fenster_ptr_;
 };
 
 } // namespace foster

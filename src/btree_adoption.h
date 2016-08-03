@@ -45,7 +45,8 @@ struct EagerAdoption
     {
         if (!child) { return false; }
 
-        ChildNodePointer foster = child->get_foster_child();
+        ChildNodePointer foster;
+        child->get_foster_child(foster);
         if (!foster) { return false; }
 
         // First attempt latch upgrade on parent and on child (if it's not already latched exclusively)
