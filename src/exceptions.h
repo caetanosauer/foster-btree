@@ -88,15 +88,14 @@ protected:
 };
 
 /// Thrown when a node is incorrectly added as a foster child of another node
-template <class K, class IdType>
+template <class IdType>
 struct InvalidFosterChildException : protected FosterBtreeException
 {
-    InvalidFosterChildException(const K& key, IdType child_id, IdType parent_id, const string& msg)
-        : key_(key), child_id_(child_id), parent_id_(parent_id), msg_(msg)
+    InvalidFosterChildException(IdType child_id, IdType parent_id, const string& msg)
+        : child_id_(child_id), parent_id_(parent_id), msg_(msg)
     {}
 
 protected:
-    K key_;
     IdType child_id_;
     IdType parent_id_;
     string msg_;
@@ -104,7 +103,7 @@ protected:
     virtual void build_msg(std::stringstream& msg) const
     {
         msg << "Cannot add node " << child_id_ << " as a foster child of node " << parent_id_
-            << " with foster key [" << key_ << "] because: " << msg_;
+            << " because: " << msg_;
     }
 };
 

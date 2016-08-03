@@ -169,17 +169,16 @@ public:
     void add_foster_child(NodePointer child)
     {
         assert<1>(child, "Invalid node pointer in set_foster_child");
+        if (child->slot_count() > 0 || child->get_foster_child()) {
+            throw InvalidFosterChildException<IdType>(child->id(), id(),
+                "Only an empty node can be added as a foster child");
+        }
 
         // Foster key is equal to high key of parent, which is equal to both fence keys on child
         KeyType low_key, high_key;
         get_fence_keys(&low_key, &high_key);
         KeyType* low_ptr = is_low_key_infinity() ? nullptr : &low_key;
         KeyType* high_ptr = is_high_key_infinity() ? nullptr : &high_key;
-
-        if (child->slot_count() > 0 || child->get_foster_child()) {
-            throw InvalidFosterChildException<KeyType, IdType>(high_key, child->id(), id(),
-                "Only an empty node can be added as a foster child");
-        }
 
         // Initialize new child's fenster with equal fence keys and move foster pointer & key
         KeyType old_foster_key;
