@@ -33,6 +33,7 @@ using std::string;
 
 #include "assertions.h"
 #include "exceptions.h"
+#include "dummies.h"
 
 // TODO: Fenster object and move_kv_records function are currently not parametrized, so we must
 // include the headers here.
@@ -66,7 +67,10 @@ namespace foster {
  * \tparam V Value type
  * \tparam KeyValueArray Key-value array clas template, parametrized only by key and value types
  */
-template <class KeyValueArray>
+template <
+    class KeyValueArray,
+    class Logger = DummyLogger
+>
 class FensterNode : public KeyValueArray
 {
 public:
@@ -77,6 +81,7 @@ public:
     using SlotNumber = typename KeyValueArray::SlotNumber;
     using PayloadPtr = typename KeyValueArray::PayloadPtr;
     using FensterType = Fenster<KeyType>;
+    using LoggerType = Logger;
 
     /**
      * \brief Constructs an empty node with a given ID
@@ -184,6 +189,10 @@ public:
         SlotNumber split_slot = slot_count / 2;
         KeyType split_key;
         this->read_slot(split_slot, &split_key, nullptr);
+
+        // TODO for redo, key should be an argument of the method
+        // TODO there should be an argument for "direction" of rebalance
+        Logger::log_rebalance(this, split_key);
 
         // STEP 2: move records
         Ptr child;

@@ -33,21 +33,12 @@ using std::string;
 
 #include "assertions.h"
 #include "exceptions.h"
+#include "dummies.h"
 
 // TODO: Fenster node currently not parametrized
 #include "fenster_node.h"
 
 namespace foster {
-
-struct DummyLatch {
-    void acquire_read() {}
-    void acquire_write() {}
-    void release_read() {}
-    void release_write() {}
-    bool attempt_upgrade() { return true; }
-    bool has_reader() { return false; }
-    void downgrade() {}
-};
 
 /**
  * \brief Basic class that represents a node of a Foster B-tree.
