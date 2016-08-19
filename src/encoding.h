@@ -171,7 +171,7 @@ public:
     static size_t get_payload_length(void*) { return 0; }
 
     /** \brief Dummy encoding == do nothing */
-    static char* encode(const T&, char* p) { return p; }
+    static char* encode(char* p, const T&) { return p; }
 
     /** \brief Dummy decoding == do nothing */
     static const char* decode(const char* p, T*) { return p; }
@@ -190,7 +190,7 @@ public:
     static size_t get_payload_length(void*) { return sizeof(T); }
 
     /** \brief Encodes a given value into a given address using the assignment operator */
-    static char* encode(const T& value, char* dest)
+    static char* encode(char* dest, const T& value)
     {
         new (dest) T {value};
         // T* value_p = reinterpret_cast<T*>(dest);
@@ -240,7 +240,7 @@ public:
     }
 
     /** \brief Encodes a string using a length field followed by the contents */
-    static char* encode(const string& value, char* dest)
+    static char* encode(char* dest, const string& value)
     {
         *(reinterpret_cast<LengthType*>(dest)) = value.length();
         dest += sizeof(LengthType);
@@ -313,15 +313,15 @@ struct TupleEncodingHelper
 
     template <typename... T>
     static typename std::enable_if<(N < sizeof...(T)), char*>::type
-    encode(const std::tuple<T...>& t, char* dest) // non-empty tuple
+    encode(char* dest, const std::tuple<T...>& t) // non-empty tuple
     {
-        char* next = FieldEnc<N, T...>::encode(std::get<N>(t), dest);
-        return NextEncoder::encode(t, next);
+        char* next = FieldEnc<N, T...>::encode(dest, std::get<N>(t));
+        return NextEncoder::encode(next, t);
     }
 
     template <typename... T>
     static typename std::enable_if<!(N < sizeof...(T)), char*>::type
-    encode(const std::tuple<T...>&, char* dest) // non-empty tuple
+    encode(char* dest, const std::tuple<T...>&) // non-empty tuple
     {
         return dest;
     }
@@ -366,9 +366,9 @@ public:
         return Helper::get_payload_length(ptr);
     }
 
-    static char* encode(const Tuple& value, char* dest)
+    static char* encode(char* dest, const Tuple& value)
     {
-        return Helper::encode(value, dest);
+        return Helper::encode(dest, value);
     }
 
     static const char* decode(const char* src, Tuple* value_p)
@@ -429,11 +429,11 @@ public:
     }
 
     /** \breif Encodes a given key-value pair into a given memory area */
-    static void encode(const K& key, const V& value, void* dest)
+    static void encode(void* dest, const K& key, const V& value)
     {
         char* p = reinterpret_cast<char*>(dest);
-        p = ActualKeyEncoder::encode(key, p);
-        ValueEncoder::encode(value, p);
+        p = ActualKeyEncoder::encode(p, key);
+        ValueEncoder::encode(p, value);
     }
 
     /**

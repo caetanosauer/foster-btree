@@ -98,7 +98,7 @@ public:
 
         // 2. Encode (or serialize) the key-value pair into the payload.
         void* payload_addr = this->get_payload_for_slot(slot);
-        Encoder::encode(key, value, payload_addr);
+        Encoder::encode(payload_addr, key, value);
         // TODO in a profile run with debug level 0, the call below is still registered!
         assert<3>(!Sorted || is_sorted());
 
@@ -188,7 +188,7 @@ public:
             slot.key = Encoder::get_pmnk(key);
 
             // update payload with truncated key
-            Encoder::encode(key, value, payload_addr);
+            Encoder::encode(payload_addr, key, value);
             size_t new_len = this->get_payload_count(Encoder::get_payload_length(payload_addr));
 
             // if truncated key occupies less payload blocks, shift accordingly

@@ -36,14 +36,14 @@ TEST(TestStringPMNK, TestPMNK)
     EXPECT_TRUE(enc.get_pmnk("acb") < enc.get_pmnk("cba"));
 }
 
-TEST(TestTupleInline, TestTuple)
+TEST(TestTupleInline, TestVariadic)
 {
     std::tuple<int, string, double, string> t =
         std::make_tuple(4711, "second field", 3.14, "fourth element");
     foster::InlineEncoder<decltype(t)> enc;
 
     std::cout << "Tuple encoded size = " << enc.get_payload_length(t) << std::endl;
-    enc.encode(t, TEST_PAGE);
+    enc.encode(TEST_PAGE, t);
 
     decltype(t) decoded_t;
     enc.decode(TEST_PAGE, &decoded_t);
