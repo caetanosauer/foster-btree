@@ -69,7 +69,7 @@ template <
     class Logger = DummyLogger,
     bool Sorted = true
 >
-class KeyValueArray : protected SlotArray
+class KeyValueArray : protected SlotArray, public Logger
 {
 public:
 
@@ -106,7 +106,7 @@ public:
         // TODO in a profile run with debug level 0, the call below is still registered!
         assert<3>(!Sorted || is_sorted());
 
-        if (logit) { Logger::log(LRType::Insert, *this, key, value); }
+        if (logit) { this->log(LRType::Insert, key, value); }
 
         return true;
     }
@@ -169,7 +169,7 @@ public:
         this->free_payload(payload, payload_length);
         this->delete_slot(slot);
 
-        if (logit) { Logger::log(LRType::Remove, *this, key); }
+        if (logit) { this->log(LRType::Remove, key); }
 
         return true;
     }

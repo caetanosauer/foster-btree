@@ -58,15 +58,13 @@ using KVArrayNoPMNK = foster::KeyValueArray<K, V,
 template<class K, class V>
 using BTNode = foster::BtreeNode<K, V,
     KVArray,
-    foster::PlainPtr,
-    unsigned
+    foster::PlainPtr
 >;
 
 template<class K, class V>
 using BTNodeNoPMNK = foster::BtreeNode<K, V,
     KVArrayNoPMNK,
-    foster::PlainPtr,
-    unsigned
+    foster::PlainPtr
 >;
 
 template<class Node>

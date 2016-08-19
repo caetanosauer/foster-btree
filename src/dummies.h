@@ -41,10 +41,12 @@ struct DummyLatch {
 };
 
 struct DummyLogger {
-    template <class Node, typename... T>
-    static void log(LRType, Node&, T...)
-    {
-    }
+
+    template <class T>
+    void initialize(T) {}
+
+    template <typename... T>
+    static void log(LRType, T...) {}
 };
 
 } // namespace foster

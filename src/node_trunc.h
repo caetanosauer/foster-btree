@@ -37,25 +37,23 @@ template <
     class K,
     class V,
     template <class,class> class KeyValueArray,
-    template <class> class Pointer,
-    class IdType
+    template <class> class Pointer
 >
 class BtreeNodePrefixTrunc;
 
 template <
     class V,
     template <class,class> class KeyValueArray,
-    template <class> class Pointer,
-    class IdType
+    template <class> class Pointer
 >
-class BtreeNodePrefixTrunc<string, V, KeyValueArray, Pointer, IdType> :
-    public BtreeNode<string, V, KeyValueArray, Pointer, IdType>
+class BtreeNodePrefixTrunc<string, V, KeyValueArray, Pointer> :
+    public BtreeNode<string, V, KeyValueArray, Pointer>
 {
 public:
 
     // Type aliases for convenience and external access
-    using SuperType = BtreeNode<string, V, KeyValueArray, Pointer, IdType>;
-    using ThisType = BtreeNodePrefixTrunc<string, V, KeyValueArray, Pointer, IdType>;
+    using SuperType = BtreeNode<string, V, KeyValueArray, Pointer>;
+    using ThisType = BtreeNodePrefixTrunc<string, V, KeyValueArray, Pointer>;
     using NodePointer = Pointer<ThisType>;
 
     bool insert(const string& key, const V& value)

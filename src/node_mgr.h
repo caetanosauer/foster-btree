@@ -75,7 +75,6 @@ public:
     using IdType = typename IdGenerator::Type;
     using NodePointer = typename Node::NodePointer;
     using KeyType = typename Node::KeyType;
-    using Logger = typename Node::LoggerType;
 
     /*
      * \brief Allocate and construct an empty node.
@@ -85,13 +84,13 @@ public:
         return construct_node(idgen_.generate());
     }
 
-    NodePointer construct_node(IdType id, bool logit = true)
+    NodePointer construct_node(IdType id)
     {
         // allocate space for node and invoke constructor
         void* addr = allocator_.allocate(1 /* number of nodes to allocate */);
-        auto node = NodePointer {new (addr) Node(id)};
+        auto node = NodePointer {new (addr) Node};
 
-        if (logit) { Logger::log(LRType::Construct, node); }
+        node->initialize(id);
         return node;
     }
 

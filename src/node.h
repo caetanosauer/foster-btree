@@ -64,14 +64,12 @@ namespace foster {
  * \tparam V Value type
  * \tparam KeyValueArray Key-value array clas template, parametrized only by key and value types
  * \tparam Pointer Class template for the type of the foster child pointer (\see pointers.h)
- * \tparam IdType Type to be used as node identifier (usually some integer type)
  */
 template <
     class K,
     class V,
     template <class,class> class KeyValueArray,
     template <class> class Pointer,
-    class IdType,
     class Latch = DummyLatch
 >
 class BtreeNode : public FensterNode<KeyValueArray<K, V>>, public Latch
@@ -79,9 +77,9 @@ class BtreeNode : public FensterNode<KeyValueArray<K, V>>, public Latch
 public:
 
     // Type aliases for convenience and external access
-    using ThisType = BtreeNode<K, V, KeyValueArray, Pointer, IdType, Latch>;
+    using ThisType = BtreeNode<K, V, KeyValueArray, Pointer, Latch>;
     using NodePointer = Pointer<ThisType>;
-    using ParentType = BtreeNode<K, NodePointer, KeyValueArray, Pointer, IdType, Latch>;
+    using ParentType = BtreeNode<K, NodePointer, KeyValueArray, Pointer, Latch>;
     using ParentPointer = Pointer<ParentType>;
     using KeyType = K;
     using ValueType = V;
@@ -90,17 +88,6 @@ public:
     template <class T> using PointerType = Pointer<T>;
 
     static constexpr bool LatchingEnabled = !std::is_same<Latch, DummyLatch>::value;
-
-    /**
-     * \brief Constructs an empty node with a given ID
-     */
-    BtreeNode(IdType id = IdType{0})
-        : id_(id)
-    {
-    }
-
-    /// \brief Convenience method to get node ID
-    IdType id() const { return id_; }
 
     template <class Ptr>
     Ptr split_for_insertion(const KeyType& new_key, Ptr new_node)
@@ -126,9 +113,6 @@ public:
     {
         return this->is_sorted() && this->all_keys_in_range();
     }
-
-private:
-    IdType id_;
 };
 
 } // namespace foster
