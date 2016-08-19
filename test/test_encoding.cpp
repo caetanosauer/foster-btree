@@ -51,6 +51,24 @@ TEST(TestTupleInline, TestVariadic)
     EXPECT_EQ(decoded_t, t);
 }
 
+TEST(TestVariadicArgs, TestVariadic)
+{
+    foster::VariadicEncoder<foster::InlineEncoder, int, string, double, string> enc;
+    enc.encode(TEST_PAGE, 4711, "second field", 3.14, "fourth element");
+
+    int a;
+    string b;
+    double c;
+    string d;
+
+    enc.decode(TEST_PAGE, &a, &b, &c, &d);
+
+    EXPECT_EQ(a, 4711);
+    EXPECT_EQ(b, "second field");
+    EXPECT_EQ(c, 3.14);
+    EXPECT_EQ(d, "fourth element");
+}
+
 int main(int argc, char **argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

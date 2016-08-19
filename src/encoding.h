@@ -347,6 +347,58 @@ struct TupleEncodingHelper
     }
 };
 
+template <size_t N, template <typename T> class FieldEncoder, typename... Types>
+struct VariadicEncodingHelper
+{
+    // generic case -- never instantiated
+};
+
+template <template <typename T> class FieldEncoder, typename... Types>
+struct VariadicEncodingHelper<0, FieldEncoder, Types...>
+{
+    static size_t get_payload_length() { return 0; }
+
+    static size_t get_payload_length(void* ptr) { return ptr; }
+
+    static char* encode(char* dest) { return dest; }
+
+    static const char* decode(const char* src) { return src; }
+};
+
+template <size_t N, template <typename T> class FieldEncoder, typename T, typename... Types>
+struct VariadicEncodingHelper<N, FieldEncoder, T, Types...>
+{
+    using NextEncoder = VariadicEncodingHelper<N-1, FieldEncoder, Types...>;
+
+    static size_t get_payload_length(const T& head, const Types&... tail)
+    {
+        return FieldEncoder<T>::get_payload_length(head) +
+            NextEncoder::get_payload_length(tail...);
+    }
+
+    static size_t get_payload_length(void* ptr)
+    {
+        size_t flen = FieldEncoder<T>::get_payload_length(ptr);
+        char* nextptr = reinterpret_cast<char*>(ptr) + flen;
+        return flen + NextEncoder::get_payload_length(nextptr);
+    }
+
+    static char* encode(char* dest, const T& head, const Types&... tail)
+    {
+        char* nextptr = FieldEncoder<T>::encode(dest, head);
+        return NextEncoder::encode(nextptr, tail...);
+    }
+
+    static const char* decode(const char* src, T* head, Types*... tail)
+    {
+        const char* nextptr = FieldEncoder<T>::decode(src, head);
+        return NextEncoder::decode(nextptr, tail...);
+    }
+};
+
+template <template <typename T> class FieldEncoder, typename... Types>
+using VariadicEncoder = VariadicEncodingHelper<sizeof...(Types), FieldEncoder, Types...>;
+
 template <>
 template <typename... Types>
 class InlineEncoder<std::tuple<Types...>>
