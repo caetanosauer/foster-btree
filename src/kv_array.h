@@ -63,7 +63,8 @@ template <
     class V,
     class SlotArray,
     class Search,
-    class Encoder
+    class Encoder,
+    bool Sorted = true
 >
 class KeyValueArray : protected SlotArray
 {
@@ -78,7 +79,7 @@ public:
     using SlotNumber = typename SlotArray::SlotNumber;
     using PayloadPtr = typename SlotArray::PayloadPtr;
     using PMNK_Type = typename SlotArray::KeyType;
-    using ThisType = KeyValueArray<K, V, SlotArray, Search, Encoder>;
+    using ThisType = KeyValueArray<K, V, SlotArray, Search, Encoder, Sorted>;
 
     static constexpr size_t Alignment = SlotArray::AlignmentSize;
 
@@ -99,7 +100,7 @@ public:
         void* payload_addr = this->get_payload_for_slot(slot);
         Encoder::encode(key, value, payload_addr);
         // TODO in a profile run with debug level 0, the call below is still registered!
-        assert<3>(is_sorted());
+        assert<3>(!Sorted || is_sorted());
 
         return true;
     }
@@ -115,8 +116,11 @@ public:
     bool insert_key(const K& key, size_t payload_length, SlotNumber& slot)
     {
         // 1. Find slot into which to insert new pair.
-        if (find_slot(key, nullptr, slot)) {
+        if (Sorted && find_slot(key, nullptr, slot)) {
             throw ExistentKeyException<K>(key);
+        }
+        else if (!Sorted) {
+            slot = this->slot_count();
         }
 
         // 2. Allocate space in the slot array for the encoded payload.
@@ -252,6 +256,14 @@ public:
         return Iterator{this};
     }
 
+    using SortedType = KeyValueArray<K, V, SlotArray, Search, Encoder, true>;
+    SortedType* convert_to_sorted()
+    {
+        // if (Sorted) { return this; }
+        this->sort_slots();
+        return reinterpret_cast<SortedType*>(this);
+    }
+
 protected:
 
     /**
@@ -272,6 +284,8 @@ protected:
     // TODO parametrize comparison function
     bool find_slot(const K& key, V* value, SlotNumber& slot)
     {
+        if (!Sorted) { return find_slot_unsorted(key, value, slot); }
+
         PMNK_Type pmnk = Encoder::get_pmnk(key);
         if (Search{}(*this, pmnk, slot, 0, this->slot_count())) {
             // Found poor man's normalized key -- now check if rest of the key matches
@@ -307,6 +321,26 @@ protected:
             slot--;
             Encoder::decode(this->get_payload_for_slot(slot), nullptr, value, nullptr);
         }
+        return false;
+    }
+
+    bool find_slot_unsorted(const K& key, V* value, SlotNumber& slot)
+    {
+        PMNK_Type pmnk = Encoder::get_pmnk(key);
+        K found_key;
+
+        // Simple linear search -- return one past the last slot if not found (append)
+        for (SlotNumber i = 0; i < this->slot_count(); i++) {
+            if (this->get_slot(i).key == pmnk) {
+                Encoder::decode(this->get_payload_for_slot(i), &found_key, value, &pmnk);
+                if (found_key == key) {
+                    slot = i;
+                    return true;
+                }
+            }
+        }
+
+        slot = this->slot_count();
         return false;
     }
 

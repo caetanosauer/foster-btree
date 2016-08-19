@@ -36,11 +36,12 @@ constexpr size_t DftAlignment = 8;
 template<class PMNK_Type>
 using SArray = foster::SlotArray<PMNK_Type, DftArrayBytes, DftAlignment>;
 
-template<class K, class V, class PMNK_Type>
+template<class K, class V, class PMNK_Type, bool Sorted = true>
 using KVArray = foster::KeyValueArray<K, V,
       SArray<PMNK_Type>,
       foster::BinarySearch<SArray<PMNK_Type>>,
-      foster::DefaultEncoder<K, V, PMNK_Type>
+      foster::DefaultEncoder<K, V, PMNK_Type>,
+      Sorted
 >;
 
 
@@ -221,6 +222,57 @@ TEST(TestMovement, SimpleMovementWithoutPMNK)
     kv.validate();
     kv2.get_map()[1] = 1000;
     kv2.validate();
+}
+
+TEST(TestUnsorted, Sortedness)
+{
+    KVArray<string, string, uint16_t, false> kv;
+    kv.insert("b", "value2");
+    kv.insert("e", "value5");
+    kv.insert("d", "value4");
+    kv.insert("a", "value1");
+    kv.insert("c", "value3");
+
+    {
+        auto iter = kv.iterate();
+        string key, value;
+        EXPECT_TRUE(iter.next(&key, &value));
+        EXPECT_EQ(key, "b");
+        EXPECT_EQ(value, "value2");
+        EXPECT_TRUE(iter.next(&key, &value));
+        EXPECT_EQ(key, "e");
+        EXPECT_EQ(value, "value5");
+        EXPECT_TRUE(iter.next(&key, &value));
+        EXPECT_EQ(key, "d");
+        EXPECT_EQ(value, "value4");
+        EXPECT_TRUE(iter.next(&key, &value));
+        EXPECT_EQ(key, "a");
+        EXPECT_EQ(value, "value1");
+        EXPECT_TRUE(iter.next(&key, &value));
+        EXPECT_EQ(key, "c");
+        EXPECT_EQ(value, "value3");
+    }
+
+    {
+        auto kv_sorted = *kv.convert_to_sorted();
+        auto iter = kv_sorted.iterate();
+        string key, value;
+        EXPECT_TRUE(iter.next(&key, &value));
+        EXPECT_EQ(key, "a");
+        EXPECT_EQ(value, "value1");
+        EXPECT_TRUE(iter.next(&key, &value));
+        EXPECT_EQ(key, "b");
+        EXPECT_EQ(value, "value2");
+        EXPECT_TRUE(iter.next(&key, &value));
+        EXPECT_EQ(key, "c");
+        EXPECT_EQ(value, "value3");
+        EXPECT_TRUE(iter.next(&key, &value));
+        EXPECT_EQ(key, "d");
+        EXPECT_EQ(value, "value4");
+        EXPECT_TRUE(iter.next(&key, &value));
+        EXPECT_EQ(key, "e");
+        EXPECT_EQ(value, "value5");
+    }
 }
 
 int main(int argc, char **argv)
