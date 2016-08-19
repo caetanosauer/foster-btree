@@ -215,10 +215,12 @@ public:
 };
 
 template <class T>
-class VariableLengthEncoder;
+class InlineEncoder : public AssignmentEncoder<T>
+{
+};
 
 template <>
-class VariableLengthEncoder<string>
+class InlineEncoder<string>
 {
 public:
 
@@ -260,6 +262,118 @@ public:
             value_p->assign(src + sizeof(LengthType), length);
         }
         return src + sizeof(LengthType) + length;
+    }
+};
+
+/**
+ * Helper calss to encode a tuple by applying a given encoder to each field
+ * recursively. Encodes field N of tuple and all the following ones in
+ * a recursive call. Recursion stops when N equals the tuple size.
+ *
+ * This is stolen from Stroustrup's book seciton 28.6.4, 4th ed.
+ */
+template <template <typename T> class FieldEncoder, size_t N = 0>
+struct TupleEncodingHelper
+{
+    using NextEncoder = TupleEncodingHelper<FieldEncoder, N+1>;
+
+    template <size_t K, typename... T>
+    using FieldEnc = FieldEncoder<typename std::tuple_element<K, std::tuple<T...>>::type>;
+
+    template <typename... T>
+    static typename std::enable_if<(N < sizeof...(T)), size_t>::type
+    get_payload_length(const std::tuple<T...>& t) // non-empty tuple
+    {
+        return NextEncoder::get_payload_length(t) +
+            FieldEnc<N, T...>::get_payload_length(std::get<N>(t));
+    }
+
+    template <typename... T>
+    static typename std::enable_if<!(N < sizeof...(T)), size_t>::type
+    get_payload_length(const std::tuple<T...>&) // empty tuple
+    {
+        return 0;
+    }
+
+    template <typename... T>
+    static typename std::enable_if<(N < sizeof...(T)), size_t>::type
+    get_payload_length(void* ptr) // non-empty tuple
+    {
+        size_t flen = FieldEnc<N, T...>::get_payload_length(ptr);
+        char* charptr = reinterpret_cast<char*>(ptr) + flen;
+        return NextEncoder::get_payload_length(charptr);
+    }
+
+    template <typename... T>
+    static typename std::enable_if<!(N < sizeof...(T)), size_t>::type
+    get_payload_length(void* ptr) // empty tuple
+    {
+        return 0;
+    }
+
+    template <typename... T>
+    static typename std::enable_if<(N < sizeof...(T)), char*>::type
+    encode(const std::tuple<T...>& t, char* dest) // non-empty tuple
+    {
+        char* next = FieldEnc<N, T...>::encode(std::get<N>(t), dest);
+        return NextEncoder::encode(t, next);
+    }
+
+    template <typename... T>
+    static typename std::enable_if<!(N < sizeof...(T)), char*>::type
+    encode(const std::tuple<T...>&, char* dest) // non-empty tuple
+    {
+        return dest;
+    }
+
+    template <typename... T>
+    static typename std::enable_if<(N < sizeof...(T)), const char*>::type
+    decode(const char* src, std::tuple<T...>* t) // non-empty tuple
+    {
+        // We can't skip decoding a tuple because we don't know the length
+        // of the whole tuple before hand
+        if (!t) {
+            t = new std::tuple<T...>{};
+        }
+        const char* next = FieldEnc<N, T...>::decode(src, &std::get<N>(*t));
+        return NextEncoder::decode(next, t);
+    }
+
+    template <typename... T>
+    static typename std::enable_if<!(N < sizeof...(T)), const char*>::type
+    decode(const char* src, std::tuple<T...>*) // non-empty tuple
+    {
+        return src;
+    }
+};
+
+template <>
+template <typename... Types>
+class InlineEncoder<std::tuple<Types...>>
+{
+public:
+
+    using Tuple = std::tuple<Types...>;
+    using Helper = TupleEncodingHelper<InlineEncoder>;
+
+    static size_t get_payload_length(const Tuple& value)
+    {
+        return Helper::get_payload_length(value);
+    }
+
+    static size_t get_payload_length(void* ptr)
+    {
+        return Helper::get_payload_length(ptr);
+    }
+
+    static char* encode(const Tuple& value, char* dest)
+    {
+        return Helper::encode(value, dest);
+    }
+
+    static const char* decode(const char* src, Tuple* value_p)
+    {
+        return Helper::decode(src, value_p);
     }
 };
 
@@ -349,17 +463,17 @@ class DefaultEncoder :
 
 template <class K, class PMNK_Type>
 class DefaultEncoder<K, string, PMNK_Type> :
-    public CompoundEncoder<AssignmentEncoder<K>, VariableLengthEncoder<string>, PMNK_Type>
+    public CompoundEncoder<AssignmentEncoder<K>, InlineEncoder<string>, PMNK_Type>
 {};
 
 template <class V, class PMNK_Type>
 class DefaultEncoder<string, V, PMNK_Type> :
-    public CompoundEncoder<VariableLengthEncoder<string>, AssignmentEncoder<V>, PMNK_Type>
+    public CompoundEncoder<InlineEncoder<string>, AssignmentEncoder<V>, PMNK_Type>
 {};
 
 template <class PMNK_Type>
 class DefaultEncoder<string, string, PMNK_Type> :
-    public CompoundEncoder<VariableLengthEncoder<string>, VariableLengthEncoder<string>, PMNK_Type>
+    public CompoundEncoder<InlineEncoder<string>, InlineEncoder<string>, PMNK_Type>
 {};
 
 } // namespace foster

@@ -22,18 +22,33 @@
 #define ENABLE_TESTING
 
 #include <gtest/gtest.h>
-#include <cstring>
 
 #include "encoding.h"
 
+char TEST_PAGE[8192];
 
-TEST(TestStringPMNK, MainTest)
+TEST(TestStringPMNK, TestPMNK)
 {
     foster::PMNKEncoder<string, uint16_t> enc;
 
-    ASSERT_TRUE(enc.get_pmnk("abc") < enc.get_pmnk("acb"));
-    ASSERT_TRUE(enc.get_pmnk("abc") < enc.get_pmnk("cba"));
-    ASSERT_TRUE(enc.get_pmnk("acb") < enc.get_pmnk("cba"));
+    EXPECT_TRUE(enc.get_pmnk("abc") < enc.get_pmnk("acb"));
+    EXPECT_TRUE(enc.get_pmnk("abc") < enc.get_pmnk("cba"));
+    EXPECT_TRUE(enc.get_pmnk("acb") < enc.get_pmnk("cba"));
+}
+
+TEST(TestTupleInline, TestTuple)
+{
+    std::tuple<int, string, double, string> t =
+        std::make_tuple(4711, "second field", 3.14, "fourth element");
+    foster::InlineEncoder<decltype(t)> enc;
+
+    std::cout << "Tuple encoded size = " << enc.get_payload_length(t) << std::endl;
+    enc.encode(t, TEST_PAGE);
+
+    decltype(t) decoded_t;
+    enc.decode(TEST_PAGE, &decoded_t);
+
+    EXPECT_EQ(decoded_t, t);
 }
 
 int main(int argc, char **argv)
