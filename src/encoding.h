@@ -46,6 +46,7 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <tuple>
 
 #include "assertions.h"
 
