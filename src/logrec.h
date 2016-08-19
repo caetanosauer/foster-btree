@@ -19,32 +19,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef FOSTER_BTREE_DUMMIES_H
-#define FOSTER_BTREE_DUMMIES_H
+#ifndef FOSTER_BTREE_LOGREC_H
+#define FOSTER_BTREE_LOGREC_H
 
 /**
- * \file dummies.h
+ * \file kv_array.h
  *
- * Dummy classes to use as do-nothing components in template arguments.
+ * A fixed-length array that encodes arbitrary key-value pairs and stores them in a slot array in
+ * the appropriate position.
  */
+
+#include <cstdint>
 
 namespace foster {
 
-struct DummyLatch {
-    void acquire_read() {}
-    void acquire_write() {}
-    void release_read() {}
-    void release_write() {}
-    bool attempt_upgrade() { return true; }
-    bool has_reader() { return false; }
-    void downgrade() {}
-};
+enum class LRType : uint8_t {
+    FIRST,
 
-struct DummyLogger {
-    template <class Node, typename... T>
-    static void log(LRType, Node&, T...)
-    {
-    }
+    Construct,
+    Format,
+    Insert,
+    Remove,
+    Overwrite,
+    Rebalance,
+
+    LAST
 };
 
 } // namespace foster

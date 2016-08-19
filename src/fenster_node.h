@@ -67,10 +67,7 @@ namespace foster {
  * \tparam V Value type
  * \tparam KeyValueArray Key-value array clas template, parametrized only by key and value types
  */
-template <
-    class KeyValueArray,
-    class Logger = DummyLogger
->
+template <class KeyValueArray>
 class FensterNode : public KeyValueArray
 {
 public:
@@ -81,7 +78,7 @@ public:
     using SlotNumber = typename KeyValueArray::SlotNumber;
     using PayloadPtr = typename KeyValueArray::PayloadPtr;
     using FensterType = Fenster<KeyType>;
-    using LoggerType = Logger;
+    using Logger = typename KeyValueArray::LoggerType;
 
     /**
      * \brief Constructs an empty node with a given ID
@@ -192,7 +189,7 @@ public:
 
         // TODO for redo, key should be an argument of the method
         // TODO there should be an argument for "direction" of rebalance
-        Logger::log_rebalance(this, split_key);
+        Logger::log(LRType::Rebalance, *this, split_key);
 
         // STEP 2: move records
         Ptr child;

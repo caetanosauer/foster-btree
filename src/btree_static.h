@@ -49,7 +49,6 @@ public:
     using BtreeLevelType = BtreeLevel<K, V, L>;
     using NodePointer = typename BtreeLevelType<Level>::NodePointer;
     using LeafPointer = typename BtreeLevelType<0>::NodePointer;
-    using Logger = typename BtreeLevelType<Level>::LeafNodeType::LoggerType;
 
     StaticBtree() :
         root_level_(new BtreeLevelType<Level>),
@@ -69,8 +68,6 @@ public:
             inserted = node->insert(key, value);
         }
 
-        Logger::log_insertion(node, key, value);
-
         node->release_write();
     }
 
@@ -86,8 +83,6 @@ public:
     {
         LeafPointer node = root_level_->traverse(root_, key, true /* for_update */);
         bool res = node->template remove<false>(key);
-
-        Logger::log_deletion(node, key);
 
         node->release_write();
         return res;

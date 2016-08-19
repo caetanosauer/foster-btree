@@ -41,6 +41,7 @@ using KVArray = foster::KeyValueArray<K, V,
       SArray<PMNK_Type>,
       foster::BinarySearch<SArray<PMNK_Type>>,
       foster::DefaultEncoder<K, V, PMNK_Type>,
+      foster::DummyLogger,
       Sorted
 >;
 

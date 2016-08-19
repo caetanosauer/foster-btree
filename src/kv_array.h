@@ -34,6 +34,8 @@
 
 #include "exceptions.h"
 #include "assertions.h"
+#include "logrec.h"
+#include "dummies.h"
 
 namespace foster {
 
@@ -64,6 +66,7 @@ template <
     class SlotArray,
     class Search,
     class Encoder,
+    class Logger = DummyLogger,
     bool Sorted = true
 >
 class KeyValueArray : protected SlotArray
@@ -76,10 +79,11 @@ public:
     using KeyType = K;
     using ValueType = V;
     using EncoderType = Encoder;
+    using LoggerType = Logger;
     using SlotNumber = typename SlotArray::SlotNumber;
     using PayloadPtr = typename SlotArray::PayloadPtr;
     using PMNK_Type = typename SlotArray::KeyType;
-    using ThisType = KeyValueArray<K, V, SlotArray, Search, Encoder, Sorted>;
+    using ThisType = KeyValueArray<K, V, SlotArray, Search, Encoder, Logger, Sorted>;
 
     static constexpr size_t Alignment = SlotArray::AlignmentSize;
 
@@ -87,7 +91,7 @@ public:
      * \brief Insert a key-value pair into the array.
      * \returns true if insertion succeeded (i.e., if there was enough free space)
      */
-    bool insert(const K& key, const V& value)
+    bool insert(const K& key, const V& value, bool logit = true)
     {
         // 1. Insert key and allocate empty payload space for the pair
         SlotNumber slot {0};
@@ -101,6 +105,8 @@ public:
         Encoder::encode(payload_addr, key, value);
         // TODO in a profile run with debug level 0, the call below is still registered!
         assert<3>(!Sorted || is_sorted());
+
+        if (logit) { Logger::log(LRType::Insert, *this, key, value); }
 
         return true;
     }
@@ -148,7 +154,7 @@ public:
      * \throws KeyNotFoundException if key does not exist in the array.
      */
     template <bool MustExist = true>
-    bool remove(const K& key)
+    bool remove(const K& key, bool logit = true)
     {
         // 1. Find slot containing the given key.
         SlotNumber slot;
@@ -162,6 +168,8 @@ public:
         size_t payload_length = Encoder::get_payload_length(this->get_payload(payload));
         this->free_payload(payload, payload_length);
         this->delete_slot(slot);
+
+        if (logit) { Logger::log(LRType::Remove, *this, key); }
 
         return true;
     }
@@ -256,7 +264,7 @@ public:
         return Iterator{this};
     }
 
-    using SortedType = KeyValueArray<K, V, SlotArray, Search, Encoder, true>;
+    using SortedType = KeyValueArray<K, V, SlotArray, Search, Encoder, Logger, true>;
     SortedType* convert_to_sorted()
     {
         // if (Sorted) { return this; }

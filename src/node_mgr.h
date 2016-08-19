@@ -85,13 +85,13 @@ public:
         return construct_node(idgen_.generate());
     }
 
-    NodePointer construct_node(IdType id)
+    NodePointer construct_node(IdType id, bool logit = true)
     {
         // allocate space for node and invoke constructor
         void* addr = allocator_.allocate(1 /* number of nodes to allocate */);
         auto node = NodePointer {new (addr) Node(id)};
 
-        Logger::log_construction(node);
+        if (logit) { Logger::log(LRType::Construct, node); }
         return node;
     }
 
