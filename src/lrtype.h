@@ -19,8 +19,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef FOSTER_BTREE_LOGREC_H
-#define FOSTER_BTREE_LOGREC_H
+#ifndef FOSTER_BTREE_LRTYPE_H
+#define FOSTER_BTREE_LRTYPE_H
 
 /**
  * \file kv_array.h
@@ -34,16 +34,12 @@
 namespace foster {
 
 enum class LRType : uint8_t {
-    FIRST,
-
     Construct,
     Format,
     Insert,
     Remove,
     Overwrite,
     Rebalance,
-
-    LAST
 };
 
 } // namespace foster

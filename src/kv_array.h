@@ -34,7 +34,7 @@
 
 #include "exceptions.h"
 #include "assertions.h"
-#include "logrec.h"
+#include "lrtype.h"
 #include "dummies.h"
 
 namespace foster {
