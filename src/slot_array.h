@@ -278,6 +278,14 @@ public:
     }
 
     /**
+     * \brief Returns position beyond last payload
+     */
+    PayloadPtr get_payload_end() const
+    {
+        return PayloadCount;
+    }
+
+    /**
      * \brief Returns a virtual-memory address of a given internal payload pointer.
      *
      * This method is used to copy payload data from the caller's memory into some allocated
