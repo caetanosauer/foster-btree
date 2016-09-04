@@ -152,6 +152,22 @@ private:
     }
 };
 
+struct ExclusiveLatchContext
+{
+    ExclusiveLatchContext(MutexLatch* latch) : latch(latch) { latch->acquire_write(); }
+    ~ExclusiveLatchContext() { latch->release_write(); }
+private:
+    MutexLatch* latch;
+};
+
+struct SharedLatchContext
+{
+    SharedLatchContext(MutexLatch* latch) : latch(latch) { latch->acquire_read(); }
+    ~SharedLatchContext() { latch->release_read(); }
+private:
+    MutexLatch* latch;
+};
+
 } // namespace foster
 
 #endif
