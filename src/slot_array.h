@@ -347,6 +347,17 @@ public:
         header_.slot_end--;
     }
 
+    bool slots_are_sorted() const
+    {
+        Key prev;
+        for (SlotNumber i = 1; i < slot_count(); i++) {
+            if (i == 1) { prev = slots_[0].key; }
+            if (slots_[i].key < prev) { return false; }
+            prev = slots_[i].key;
+        }
+        return true;
+    }
+
     /** \brief Provides access to slot in the given position.  */
     Slot& get_slot(SlotNumber slot) { return slots_[slot]; }
     const Slot& get_slot(SlotNumber slot) const { return slots_[slot]; }
