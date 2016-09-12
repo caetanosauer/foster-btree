@@ -384,11 +384,9 @@ public:
         cout << "-----------------------------------" << endl;
     }
 
-protected:
-
     void sort_slots()
     {
-        auto cmp = [](Slot a, Slot b) { return a.key < b.key; };
+        auto cmp = [](const Slot& a, const Slot& b) { return a.key < b.key; };
         std::stable_sort(slots_, slots_ + slot_count(), cmp);
     }
 };

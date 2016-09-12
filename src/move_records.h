@@ -153,7 +153,7 @@ bool preallocate_slots(
     constexpr size_t PayloadSize = sizeof(typename SlotArray::PayloadBlock);
     slot_dest = sarray.slot_count();
 
-    bool success;
+    bool success = true;
     SlotNumber inserted = 0;
     while (inserted < slot_count) {
         success = sarray.insert_slot(sarray.slot_count());
