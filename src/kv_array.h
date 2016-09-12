@@ -39,12 +39,6 @@
 
 namespace foster {
 
-// Forward declaration for friend function declaration below
-namespace internal {
-    template<class T1, class T2, class S>
-    bool move_kv_records(T1&, S, T2&, S, size_t);
-}
-
 /**
  * \brief Provides ordered storage and search of key-value pairs in a slot array.
  *
@@ -69,7 +63,7 @@ template <
     class Logger = DummyLogger,
     bool Sorted = true
 >
-class KeyValueArray : protected SlotArray, public Logger
+class KeyValueArray : public SlotArray, public Logger
 {
 public:
 
@@ -226,6 +220,12 @@ public:
         return this->slot_count();
     }
 
+    size_t get_payload_length(SlotNumber s)
+    {
+        auto& slot = this->get_slot(s);
+        return Encoder::get_payload_length(this->get_payload(slot.ptr));
+    }
+
     /// \brief Decodes key and value associated with a given slot number
     void read_slot(SlotNumber s, K* key, V* value)
     {
@@ -352,16 +352,6 @@ protected:
         return false;
     }
 
-    /*
-     * Friend declaration of the move_kv_records. It's currently implemented as an external friend
-     * function instead of a method just to achieve some separation and keep the class itself
-     * simple. The function is templated to support different array implementations. Think of this
-     * like the STL sort function, which works on arbitrary data structures and is a separate
-     * function.
-     */
-    template<class T1, class T2, class S>
-    friend bool internal::move_kv_records(T1&, S, T2&, S, size_t);
-
 public:
 
     /// Debugging/utility function to print the array's contents.
@@ -405,97 +395,6 @@ public:
     }
 
 };
-
-namespace internal {
-
-/**
- * \brief Function template to move key-value pairs between arrays.
- *
- * \param[in] dest Key-value array into which pairs will be moved.
- * \param[in] dest_slot Slot position in which pairs will be inserted in the destination array.
- * \param[in] src Source array from which pairs will be moved.
- * \param[in] src_slot First slot to be moved in the source array.
- * \param[in] slot_count Number of slots to move
- * \returns true if movement succeeds; false otherwise
- *
- * One important aspect of this function is that the movement is atomic; i.e., if any of the
- * individual movements fails (possibliy due to lack of free space on destination) then the whole
- * movement is "rolled back" by reinserting the already-moved pairs into the source array.
- */
-template <class KVArrayDest, class KVArraySrc,
-         class SlotNumber = typename KVArrayDest::SlotNumber>
-bool move_kv_records(
-        KVArrayDest& dest, SlotNumber dest_slot,
-        KVArraySrc& src, SlotNumber src_slot,
-        size_t slot_count)
-{
-    using Encoder = typename KVArrayDest::EncoderType;
-    using PayloadPtr = typename KVArrayDest::PayloadPtr;
-
-    SlotNumber last_slot = src_slot + slot_count - 1;
-    assert<1>(last_slot < src.slot_count());
-    assert<1>(src.is_sorted());
-
-    bool success = true;
-    SlotNumber i = src_slot, j = dest_slot;
-
-    // First copy slots from the source array into the destination one. If an insertion or payload
-    // allocation fails in the destination, we break out of the loop and success is set to false.
-    while (i <= last_slot) {
-        // 1. Insert slot
-        success = dest.insert_slot(j);
-        if (!success) { break; }
-
-        // 2. Allocate payload
-        void* payload_src = src.get_payload_for_slot(i);
-        size_t length = Encoder::get_payload_length(payload_src);
-
-        PayloadPtr payload_dest_ptr;
-        success = dest.allocate_payload(payload_dest_ptr, length);
-        if (!success) {
-            dest.delete_slot(j);
-            break;
-        }
-
-        // 3. Copy slot and payload data into the reserved space.
-        // TODO add Slot::init or reset or something like that
-        dest.get_slot(j).key = src.get_slot(i).key;
-        dest.get_slot(j).ptr = payload_dest_ptr;
-        dest.get_slot(j).ghost = src.get_slot(i).ghost;
-
-        memcpy(dest.get_payload(payload_dest_ptr), payload_src, length);
-
-        i++;
-        j++;
-    }
-
-    // If copy failed above, we need to roll back by removing the entries that were already copied
-    if (!success) {
-        while (j > dest_slot) {
-            j--;
-            dest.free_payload(dest.get_slot(j).ptr,
-                    Encoder::get_payload_length(dest.get_payload_for_slot(j)));
-            dest.delete_slot(j);
-        }
-    }
-    // Otherwise, we delete the copied slots on the source array, thus completing the move operation
-    else {
-        assert<1>(i == last_slot + 1);
-        while (i > src_slot) {
-            i--;
-            src.free_payload(src.get_slot(i).ptr,
-                    Encoder::get_payload_length(src.get_payload_for_slot(i)));
-            src.delete_slot(i);
-        }
-    }
-
-    assert<1>(dest.is_sorted());
-    assert<1>(src.is_sorted());
-
-    return success;
-}
-
-} // namespace internal
 
 } // namespace foster
 

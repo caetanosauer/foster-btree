@@ -29,6 +29,7 @@
 #include "encoding.h"
 #include "search.h"
 #include "kv_array.h"
+#include "move_records.h"
 
 constexpr size_t DftArrayBytes = 8192;
 constexpr size_t DftAlignment = 8;
@@ -164,7 +165,7 @@ TEST(TestMovement, SimpleMovement)
     KVArrayValidator<string, string, uint16_t> kv2;
 
     // move d and e
-    internal::move_kv_records(kv2.get_kv(), 0, kv.get_kv(), 3, 2);
+    move_records(kv2.get_kv(), 0, kv.get_kv(), 3, 2);
     kv.get_map().erase("d");
     kv.get_map().erase("e");
     kv.validate();
@@ -173,14 +174,14 @@ TEST(TestMovement, SimpleMovement)
     kv2.validate();
 
     // move b
-    internal::move_kv_records(kv2.get_kv(), 0, kv.get_kv(), 1, 1);
+    move_records(kv2.get_kv(), 0, kv.get_kv(), 1, 1);
     kv.get_map().erase("b");
     kv.validate();
     kv2.get_map()["b"] = "value2";
     kv2.validate();
 
     // move a
-    internal::move_kv_records(kv2.get_kv(), 0, kv.get_kv(), 0, 1);
+    move_records(kv2.get_kv(), 0, kv.get_kv(), 0, 1);
     kv.get_map().erase("a");
     kv.validate();
     kv2.get_map()["a"] = "value1";
@@ -202,7 +203,7 @@ TEST(TestMovement, SimpleMovementWithoutPMNK)
     KVArrayValidator<int, int, int> kv2;
 
     // move d and e
-    internal::move_kv_records(kv2.get_kv(), 0, kv.get_kv(), 3, 2);
+    move_records(kv2.get_kv(), 0, kv.get_kv(), 3, 2);
     kv.get_map().erase(4);
     kv.get_map().erase(5);
     kv.validate();
@@ -211,14 +212,14 @@ TEST(TestMovement, SimpleMovementWithoutPMNK)
     kv2.validate();
 
     // move b
-    internal::move_kv_records(kv2.get_kv(), 0, kv.get_kv(), 1, 1);
+    move_records(kv2.get_kv(), 0, kv.get_kv(), 1, 1);
     kv.get_map().erase(2);
     kv.validate();
     kv2.get_map()[2] = 2000;
     kv2.validate();
 
     // move a
-    internal::move_kv_records(kv2.get_kv(), 0, kv.get_kv(), 0, 1);
+    move_records(kv2.get_kv(), 0, kv.get_kv(), 0, 1);
     kv.get_map().erase(1);
     kv.validate();
     kv2.get_map()[1] = 1000;

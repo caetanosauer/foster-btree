@@ -40,6 +40,8 @@ using std::string;
 #include "fenster.h"
 #include "kv_array.h"
 
+#include "move_records.h"
+
 namespace foster {
 
 
@@ -194,8 +196,8 @@ public:
         // STEP 2: move records
         Ptr child;
         get_foster_child(child);
-        bool moved = internal::move_kv_records(*child, SlotNumber(0), *this, split_slot,
-                slot_count - split_slot);
+        bool moved =
+            move_records(*child, SlotNumber(0), *this, split_slot, slot_count - split_slot);
         if (!moved) { return false; }
 
         // STEP 3: Adjust foster key
