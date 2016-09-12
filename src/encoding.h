@@ -495,7 +495,7 @@ public:
      * A key or value argument given as a nullptr is not decoded. If both are nullptr, the function
      * does nothing.
      */
-    static void decode(const void* src, K* key, V* value = nullptr, PMNK_Type* pmnk = nullptr)
+    static void decode(const void* src, K* key, V* value = nullptr, const PMNK_Type* pmnk = nullptr)
     {
         const char* p = reinterpret_cast<const char*>(src);
         p = ActualKeyEncoder::decode(p, key);

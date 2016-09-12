@@ -208,28 +208,28 @@ public:
      * \brief Searches for a given key in the array.
      * \see find_slot
      */
-    bool find(const K& key, V* value = nullptr)
+    bool find(const K& key, V* value = nullptr) const
     {
         SlotNumber slot {0};
         return find_slot(key, value, slot);
     }
 
     /// \brief Number of key-value pairs currently present in the array.
-    size_t size()
+    size_t size() const
     {
         return this->slot_count();
     }
 
-    size_t get_payload_length(SlotNumber s)
+    size_t get_payload_length(SlotNumber s) const
     {
         auto& slot = this->get_slot(s);
         return Encoder::get_payload_length(this->get_payload(slot.ptr));
     }
 
     /// \brief Decodes key and value associated with a given slot number
-    void read_slot(SlotNumber s, K* key, V* value)
+    void read_slot(SlotNumber s, K* key, V* value) const
     {
-        auto& slot = this->get_slot(s);
+        const auto& slot = this->get_slot(s);
         Encoder::decode(this->get_payload(slot.ptr), key, value, &slot.key);
     }
 
@@ -239,7 +239,7 @@ public:
     class Iterator
     {
     public:
-        Iterator(ThisType* kv) :
+        Iterator(const ThisType* kv) :
             current_slot_{0}, kv_{kv}
         {}
 
@@ -255,11 +255,11 @@ public:
 
     private:
         SlotNumber current_slot_;
-        ThisType* kv_;
+        const ThisType* kv_;
     };
 
     /// \brief Yields an iterator instance to sequentially read all key-value pairs
-    Iterator iterate()
+    Iterator iterate() const
     {
         return Iterator{this};
     }
@@ -290,7 +290,7 @@ protected:
      * \returns true if key was found in the array; false otherwise.
      */
     // TODO parametrize comparison function
-    bool find_slot(const K& key, V* value, SlotNumber& slot)
+    bool find_slot(const K& key, V* value, SlotNumber& slot) const
     {
         if (!Sorted) { return find_slot_unsorted(key, value, slot); }
 
@@ -332,7 +332,7 @@ protected:
         return false;
     }
 
-    bool find_slot_unsorted(const K& key, V* value, SlotNumber& slot)
+    bool find_slot_unsorted(const K& key, V* value, SlotNumber& slot) const
     {
         PMNK_Type pmnk = Encoder::get_pmnk(key);
         K found_key;
@@ -355,7 +355,7 @@ protected:
 public:
 
     /// Debugging/utility function to print the array's contents.
-    void print(std::ostream& o)
+    void print(std::ostream& o) const
     {
         using std::endl;
 
@@ -373,7 +373,7 @@ public:
     }
 
     /// Debugging/testing function to verify if contents are sorted
-    bool is_sorted()
+    bool is_sorted() const
     {
         PMNK_Type pmnk, prev_pmnk;
         K key, prev_key;
