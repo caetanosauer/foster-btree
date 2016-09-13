@@ -42,6 +42,22 @@ enum class LRType : uint8_t {
     Rebalance,
 };
 
+struct LRTypeString
+{
+    std::string operator()(const LRType& type)
+    {
+        switch (type) {
+            case LRType::Construct: return "Construct";
+            case LRType::Format: return "Format";
+            case LRType::Insert: return "Insert";
+            case LRType::Remove: return "Remove";
+            case LRType::Overwrite: return "Overwrite";
+            case LRType::Rebalance: return "Rebalance";
+        }
+        return "UNKNOWN_TYPE";
+    }
+};
+
 } // namespace foster
 
 #endif
