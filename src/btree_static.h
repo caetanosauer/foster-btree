@@ -56,9 +56,15 @@ public:
     {
     }
 
+    template <bool Upsert = true>
     void put(const K& key, const V& value)
     {
         LeafPointer node = root_level_->traverse(root_, key, true /* for_update */);
+        if (Upsert) {
+            // insert node if not existing, otherwise just update it
+            // TODO implement update/overwrite method
+            if (node->find(key)) { node->remove(key); }
+        }
         bool inserted = node->insert(key, value);
 
         while (!inserted) {
@@ -68,6 +74,7 @@ public:
             inserted = node->insert(key, value);
         }
 
+        // TODO latch should be released when pointer is destroyed
         node->release_write();
     }
 
