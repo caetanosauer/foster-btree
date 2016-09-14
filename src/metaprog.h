@@ -157,6 +157,33 @@ template<unsigned N, typename ... T>
 using TypePadding = typename PaddingImpl<AlignedSizeOf<N, T...>() - sizeof...(T)>::type;
 
 
+template <typename Head, typename... Tail>
+constexpr size_t SizeOfTypePack()
+{
+    return sizeof(Head) + SizeOfTypePack<Tail...>();
+}
+
+constexpr size_t SizeOfTypePack() { return 0; }
+
+template<size_t N, typename... Types> // general case; never instantiated
+struct SizeOfTypePackImpl;
+
+template<size_t N, typename Head, typename... Tail>
+struct SizeOfTypePackImpl<N, Head, Tail...> {
+    static constexpr size_t size = sizeof(Head) + SizeOfTypePack<Tail...>();
+};
+
+template<typename... Tail>
+struct SizeOfTypePackImpl<0, Tail...> {
+    static constexpr size_t size = 0;
+};
+
+template <typename... Types>
+constexpr size_t SizeOfTypePack()
+{
+    return SizeOfTypePackImpl<sizeof...(Types), Types...>::size;
+}
+
 }} // namespace foster::meta
 
 #endif

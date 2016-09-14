@@ -77,12 +77,21 @@ namespace foster {
  *                   efficiency, but it increases wasted space due to fragmentation of payloads. A
  *                   good rule of thumb is 0.001 of the total array size.
  */
-template<class Key, size_t ArrayBytes = 8192, size_t Alignment = 8>
-class SlotArray {
+template<
+    class Key,
+    size_t TotalSize = 8192,
+    size_t Alignment = 8,
+    typename... SuperTypes
+>
+class alignas(Alignment) SlotArray : public SuperTypes...
+{
 public:
 
     /** @name Compile-time constants and types **/
     /**@{**/
+    /** Usable portion of TotalSize that will be used by slots and payloads */
+    static constexpr size_t ArrayBytes =
+        ((TotalSize - meta::SizeOfTypePack<SuperTypes...>()) / Alignment) * Alignment;
     /** Number of payload blocks that fit into the allocated memory */
     static constexpr size_t MaxPayloadCount = ArrayBytes / Alignment;
     /** Pointer size (in bytes) required to address all possible payload blocks */
@@ -364,6 +373,28 @@ public:
     /** \brief Convenience alias for slot() **/
     Slot& operator[](SlotNumber slot) { return get_slot(slot); }
     const Slot& operator[](SlotNumber slot) const { return get_slot(slot); }
+
+    /**@}**/
+
+    /**
+     * @name Utility functions that rely on encoding & decoding records
+     */
+    /**@{**/
+
+    template <class Encoder>
+    size_t get_payload_length(SlotNumber s)
+    {
+        const auto& slot = get_slot(s);
+        return Encoder::get_payload_length(get_payload(slot.ptr));
+    }
+
+    /// \brief Decodes key and value associated with a given slot number
+    template <class K, class V, class Encoder>
+    void read_slot(SlotNumber s, K* key, V* value)
+    {
+        const auto& slot = get_slot(s);
+        Encoder::decode(get_payload(slot.ptr), key, value, &slot.key);
+    }
 
     /**@}**/
 
