@@ -36,7 +36,7 @@ struct DummyLatch {
     void release_read() {}
     void release_write() {}
     bool attempt_upgrade() { return true; }
-    bool has_reader() { return false; }
+    bool has_reader() { return true; }
     void downgrade() {}
 };
 
