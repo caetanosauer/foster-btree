@@ -214,11 +214,23 @@ public:
      */
     bool allocate_payload(PayloadPtr& ptr, size_t length)
     {
-        // We probably also want space for a new slot, so check it here
         size_t space_needed = get_payload_count(length) * Alignment;
         if (free_space() < space_needed) { return false; }
         header_.payload_begin -= get_payload_count(length);
         ptr = header_.payload_begin;
+        return true;
+    }
+
+    bool allocate_end_payload(PayloadPtr& ptr, size_t length)
+    {
+        size_t p_count = get_payload_count(length);
+        size_t space_needed = p_count * Alignment;
+        if (free_space() < space_needed) { return false; }
+
+        PayloadPtr last_p = get_payload_end();
+        PayloadPtr first_p = get_first_payload();
+        shift_payloads(first_p - p_count, first_p, last_p - first_p);
+        ptr = last_p - p_count;
         return true;
     }
 

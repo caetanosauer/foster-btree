@@ -37,18 +37,11 @@ constexpr size_t DftAlignment = 8;
 template<class PMNK_Type>
 using SArray = foster::SlotArray<PMNK_Type, DftArrayBytes, DftAlignment>;
 
-template <typename PMNK_Type>
-struct GetEncoder
-{
-    template <typename K, typename V>
-    struct type : foster::DefaultEncoder<K, V, PMNK_Type> {};
-};
-
 template<class K, class V, class PMNK_Type, bool Sorted = true>
 using Node = foster::Node<
       K, V,
       foster::BinarySearch<SArray<PMNK_Type>>,
-      GetEncoder<PMNK_Type>::template type,
+      foster::GetEncoder<PMNK_Type>::template type,
       void, // Logger
       Sorted
 >;

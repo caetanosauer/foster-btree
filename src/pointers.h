@@ -39,7 +39,7 @@ public:
 
     using PointeeType = T;
 
-    explicit PlainPtr(T* p = nullptr) : ptr_(p) {}
+    PlainPtr(T* p = nullptr) : ptr_(p) {}
 
     template <typename OtherT, typename = typename
         std::enable_if<std::is_convertible<OtherT*, T*>::value>::type>

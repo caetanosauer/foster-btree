@@ -530,6 +530,18 @@ class DefaultEncoder<string, string, PMNK_Type> :
     public CompoundEncoder<InlineEncoder<string>, InlineEncoder<string>, PMNK_Type>
 {};
 
+/**
+ * Helper type function to get a 2-argument encoder template from a 3-argument one.
+ * This means that we specify only the PMNK type and let the user pick whatever K and V
+ * they want.
+ */
+template <typename PMNK_Type>
+struct GetEncoder
+{
+    template <typename K, typename V>
+    struct type : foster::DefaultEncoder<K, V, PMNK_Type> {};
+};
+
 } // namespace foster
 
 #endif

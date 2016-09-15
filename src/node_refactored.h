@@ -43,6 +43,11 @@ class Node
 {
 public:
 
+    using KeyType = K;
+    using ValueType = V;
+    using EncoderType = Encoder<K, V>;
+    using LoggerType = Logger;
+
     static constexpr bool LoggingOn = !std::is_void<Logger>::value;
 
     /**
