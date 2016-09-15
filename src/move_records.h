@@ -41,138 +41,140 @@ namespace foster {
  * individual movements fails (possibliy due to lack of free space on destination) then the whole
  * movement is "rolled back" by reinserting the already-moved pairs into the source array.
  */
-template <
-    class Dest,
-    class Src,
-    class Encoder = typename Dest::EncoderType,
-    class SlotNumber = typename Dest::SlotNumber
->
-bool move_records(
-        Dest& dest, SlotNumber dest_slot,
-        Src& src, SlotNumber src_slot,
-        size_t slot_count,
-        bool move = true)
+template <class Encoder>
+class RecordMover
 {
-    using PayloadPtr = typename Dest::PayloadPtr;
+public:
 
-    SlotNumber last_slot = src_slot + slot_count - 1;
-    assert<1>(last_slot < src.slot_count());
+    template <class Dest, class Src, class SlotNumber = typename Dest::SlotNumber>
+    static bool move_records(
+            Dest& dest, SlotNumber dest_slot,
+            Src& src, SlotNumber src_slot,
+            size_t slot_count,
+            bool move = true)
+    {
+        using PayloadPtr = typename Dest::PayloadPtr;
 
-    bool success = true;
-    SlotNumber i = src_slot, j = dest_slot;
+        SlotNumber last_slot = src_slot + slot_count - 1;
+        assert<1>(last_slot < src.slot_count());
 
-    // First copy slots from the source array into the destination one. If an insertion or payload
-    // allocation fails in the destination, we break out of the loop and success is set to false.
-    while (i <= last_slot) {
-        // 1. Insert slot
-        success = dest.insert_slot(j);
-        if (!success) { break; }
+        bool success = true;
+        SlotNumber i = src_slot, j = dest_slot;
 
-        // 2. Allocate payload
-        void* payload_src = src.get_payload_for_slot(i);
-        size_t length = Encoder::get_payload_length(payload_src);
+        // First copy slots from the source array into the destination one. If an insertion or payload
+        // allocation fails in the destination, we break out of the loop and success is set to false.
+        while (i <= last_slot) {
+            // 1. Insert slot
+            success = dest.insert_slot(j);
+            if (!success) { break; }
 
-        PayloadPtr payload_dest_ptr;
-        success = dest.allocate_payload(payload_dest_ptr, length);
+            // 2. Allocate payload
+            void* payload_src = src.get_payload_for_slot(i);
+            size_t length = Encoder::get_payload_length(payload_src);
+
+            PayloadPtr payload_dest_ptr;
+            success = dest.allocate_payload(payload_dest_ptr, length);
+            if (!success) {
+                dest.delete_slot(j);
+                break;
+            }
+
+            // 3. Copy slot and payload data into the reserved space.
+            dest.get_slot(j) = { src.get_slot(i).key, payload_dest_ptr, src.get_slot(i).ghost };
+            memcpy(dest.get_payload(payload_dest_ptr), payload_src, length);
+
+            i++;
+            j++;
+        }
+
+        // If copy failed above, we need to roll back by removing the entries that were already copied
         if (!success) {
-            dest.delete_slot(j);
-            break;
+            while (j > dest_slot) {
+                j--;
+                dest.free_payload(dest.get_slot(j).ptr,
+                        Encoder::get_payload_length(dest.get_payload_for_slot(j)));
+                dest.delete_slot(j);
+            }
+        }
+        // Otherwise, we delete the copied slots on the source array, thus completing the move operation
+        else if (move) {
+            assert<1>(i == last_slot + 1);
+            while (i > src_slot) {
+                i--;
+                src.free_payload(src.get_slot(i).ptr,
+                        Encoder::get_payload_length(src.get_payload_for_slot(i)));
+                src.delete_slot(i);
+            }
         }
 
-        // 3. Copy slot and payload data into the reserved space.
-        dest.get_slot(j) = { src.get_slot(i).key, payload_dest_ptr, src.get_slot(i).ghost };
-        memcpy(dest.get_payload(payload_dest_ptr), payload_src, length);
-
-        i++;
-        j++;
+        return success;
     }
 
-    // If copy failed above, we need to roll back by removing the entries that were already copied
-    if (!success) {
-        while (j > dest_slot) {
-            j--;
-            dest.free_payload(dest.get_slot(j).ptr,
-                    Encoder::get_payload_length(dest.get_payload_for_slot(j)));
-            dest.delete_slot(j);
-        }
-    }
-    // Otherwise, we delete the copied slots on the source array, thus completing the move operation
-    else if (move) {
-        assert<1>(i == last_slot + 1);
-        while (i > src_slot) {
-            i--;
-            src.free_payload(src.get_slot(i).ptr,
-                    Encoder::get_payload_length(src.get_payload_for_slot(i)));
-            src.delete_slot(i);
-        }
-    }
+    template <
+        class Dest,
+        class Src,
+        class SlotNumber = typename Dest::SlotNumber,
+        class PayloadPtr = typename Dest::PayloadPtr
+    >
+    static void copy_records_prealloc(
+            Dest& dest, SlotNumber dest_slot, PayloadPtr dest_payload,
+            const Src& src, SlotNumber src_slot,
+            size_t slot_count)
+    {
+        constexpr size_t PayloadSize = sizeof(typename Dest::PayloadBlock);
+        SlotNumber last_slot = src_slot + slot_count - 1;
+        assert<1>(last_slot < src.slot_count());
 
-    return success;
-}
+        SlotNumber i = src_slot, j = dest_slot;
+        PayloadPtr payload_dest_ptr = dest_payload;
 
-template <
-    class Dest,
-    class Src,
-    class SlotNumber = typename Dest::SlotNumber,
-    class PayloadPtr = typename Dest::PayloadPtr
->
-void copy_records_prealloc(
-        Dest& dest, SlotNumber dest_slot, PayloadPtr dest_payload,
-        const Src& src, SlotNumber src_slot,
-        size_t slot_count)
-{
-    constexpr size_t PayloadSize = sizeof(typename Dest::PayloadBlock);
-    SlotNumber last_slot = src_slot + slot_count - 1;
-    assert<1>(last_slot < src.slot_count());
+        while (i <= last_slot) {
+            const void* payload_src = src.get_payload_for_slot(i);
+            size_t length = src.get_payload_length(i);
 
-    SlotNumber i = src_slot, j = dest_slot;
-    PayloadPtr payload_dest_ptr = dest_payload;
+            dest.get_slot(j) = { src.get_slot(i).key, payload_dest_ptr, src.get_slot(i).ghost };
+            memcpy(dest.get_payload(payload_dest_ptr), payload_src, length);
 
-    while (i <= last_slot) {
-        const void* payload_src = src.get_payload_for_slot(i);
-        size_t length = src.get_payload_length(i);
-
-        dest.get_slot(j) = { src.get_slot(i).key, payload_dest_ptr, src.get_slot(i).ghost };
-        memcpy(dest.get_payload(payload_dest_ptr), payload_src, length);
-
-        payload_dest_ptr += length / PayloadSize;
-        i++;
-        j++;
-    }
-}
-
-template <
-    class SlotArray,
-    class SlotNumber = typename SlotArray::SlotNumber,
-    class PayloadPtr = typename SlotArray::PayloadPtr
->
-bool preallocate_slots(
-        SlotArray& sarray, size_t slot_count, size_t payload_count,
-        SlotNumber& slot_dest, PayloadPtr& dest_ptr)
-{
-    constexpr size_t PayloadSize = sizeof(typename SlotArray::PayloadBlock);
-    slot_dest = sarray.slot_count();
-
-    bool success = true;
-    SlotNumber inserted = 0;
-    while (inserted < slot_count) {
-        success = sarray.insert_slot(sarray.slot_count());
-        if (!success) { break; }
-        inserted++;
-    }
-
-    if (success) {
-        success = sarray.allocate_payload(dest_ptr, payload_count * PayloadSize);
-    }
-
-    if (!success) {
-        for (SlotNumber i = 0; i < inserted; i++) {
-            sarray.delete_slot(slot_dest);
+            payload_dest_ptr += length / PayloadSize;
+            i++;
+            j++;
         }
     }
 
-    return success;
-}
+    template <
+        class SlotArray,
+        class SlotNumber = typename SlotArray::SlotNumber,
+        class PayloadPtr = typename SlotArray::PayloadPtr
+    >
+    static bool preallocate_slots(
+            SlotArray& sarray, size_t slot_count, size_t payload_count,
+            SlotNumber& slot_dest, PayloadPtr& dest_ptr)
+    {
+        constexpr size_t PayloadSize = sizeof(typename SlotArray::PayloadBlock);
+        slot_dest = sarray.slot_count();
+
+        bool success = true;
+        SlotNumber inserted = 0;
+        while (inserted < slot_count) {
+            success = sarray.insert_slot(sarray.slot_count());
+            if (!success) { break; }
+            inserted++;
+        }
+
+        if (success) {
+            success = sarray.allocate_payload(dest_ptr, payload_count * PayloadSize);
+        }
+
+        if (!success) {
+            for (SlotNumber i = 0; i < inserted; i++) {
+                sarray.delete_slot(slot_dest);
+            }
+        }
+
+        return success;
+    }
+
+};
 
 } // namespace foster
 

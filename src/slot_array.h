@@ -376,28 +376,6 @@ public:
 
     /**@}**/
 
-    /**
-     * @name Utility functions that rely on encoding & decoding records
-     */
-    /**@{**/
-
-    template <class Encoder>
-    size_t get_payload_length(SlotNumber s)
-    {
-        const auto& slot = get_slot(s);
-        return Encoder::get_payload_length(get_payload(slot.ptr));
-    }
-
-    /// \brief Decodes key and value associated with a given slot number
-    template <class K, class V, class Encoder>
-    void read_slot(SlotNumber s, K* key, V* value)
-    {
-        const auto& slot = get_slot(s);
-        Encoder::decode(get_payload(slot.ptr), key, value, &slot.key);
-    }
-
-    /**@}**/
-
     /** \brief Print method used for debugging */
     void print_info()
     {

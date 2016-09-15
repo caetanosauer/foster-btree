@@ -28,7 +28,7 @@
 #include "slot_array.h"
 #include "encoding.h"
 #include "search.h"
-#include "kv_array.h"
+#include "node_refactored.h"
 #include "move_records.h"
 
 constexpr size_t DftArrayBytes = 8192;
@@ -37,13 +37,25 @@ constexpr size_t DftAlignment = 8;
 template<class PMNK_Type>
 using SArray = foster::SlotArray<PMNK_Type, DftArrayBytes, DftAlignment>;
 
+template <typename PMNK_Type>
+struct GetEncoder
+{
+    template <typename K, typename V>
+    struct type : foster::DefaultEncoder<K, V, PMNK_Type> {};
+};
+
 template<class K, class V, class PMNK_Type, bool Sorted = true>
-using KVArray = foster::KeyValueArray<K, V,
-      SArray<PMNK_Type>,
+using Node = foster::Node<
+      K, V,
       foster::BinarySearch<SArray<PMNK_Type>>,
-      foster::DefaultEncoder<K, V, PMNK_Type>,
-      foster::DummyLogger,
+      GetEncoder<PMNK_Type>::template type,
+      void, // Logger
       Sorted
+>;
+
+template<class K, class V, class PMNK_Type>
+using RecordMover = foster::RecordMover<
+    foster::DefaultEncoder<K, V, PMNK_Type>
 >;
 
 
@@ -52,42 +64,54 @@ class KVArrayValidator
 {
 public:
 
+    using NodeUpd = Node<K, V, PMNK_Type>;
+    using RecMover = RecordMover<K, V, PMNK_Type>;
+
     void insert(const K& key, const V& value)
     {
         map_[key] = value;
-        kv_.insert(key, value);
+        NodeUpd::insert(kv_, key, value);
         validate();
     }
 
     void remove(const K& key)
     {
         map_.erase(key);
-        kv_.remove(key);
+        NodeUpd::remove(kv_, key);
         validate();
     }
 
     void validate()
     {
-        EXPECT_EQ(kv_.size(), map_.size());
+        EXPECT_EQ(kv_.slot_count(), map_.size());
 
         bool found;
         V value;
         for (auto e : map_) {
-            found = kv_.find(e.first, &value);
+            found = NodeUpd::find(kv_, e.first, value);
             ASSERT_TRUE(found);
             EXPECT_EQ(e.second, value);
         }
 
-        EXPECT_TRUE(kv_.is_sorted());
+        EXPECT_TRUE(NodeUpd::is_sorted(kv_));
     }
 
-    KVArray<K, V, PMNK_Type>& get_kv() { return kv_; }
+    template <class Dest, class Src, class SlotNumber>
+    static bool move_records(
+            Dest& dest, SlotNumber dest_slot,
+            Src& src, SlotNumber src_slot,
+            size_t slot_count)
+    {
+        return RecMover::move_records(dest, dest_slot, src, src_slot, slot_count);
+    }
+
+    SArray<PMNK_Type>& get_kv() { return kv_; }
     std::map<K, V>& get_map() { return map_; }
 
 private:
 
     std::map<K, V> map_;
-    KVArray<K, V, PMNK_Type> kv_;
+    SArray<PMNK_Type> kv_;
 };
 
 TEST(TestInsertions, SimpleInsertions)
@@ -165,7 +189,7 @@ TEST(TestMovement, SimpleMovement)
     KVArrayValidator<string, string, uint16_t> kv2;
 
     // move d and e
-    move_records(kv2.get_kv(), 0, kv.get_kv(), 3, 2);
+    kv.move_records(kv2.get_kv(), 0, kv.get_kv(), 3, 2);
     kv.get_map().erase("d");
     kv.get_map().erase("e");
     kv.validate();
@@ -174,14 +198,14 @@ TEST(TestMovement, SimpleMovement)
     kv2.validate();
 
     // move b
-    move_records(kv2.get_kv(), 0, kv.get_kv(), 1, 1);
+    kv.move_records(kv2.get_kv(), 0, kv.get_kv(), 1, 1);
     kv.get_map().erase("b");
     kv.validate();
     kv2.get_map()["b"] = "value2";
     kv2.validate();
 
     // move a
-    move_records(kv2.get_kv(), 0, kv.get_kv(), 0, 1);
+    kv.move_records(kv2.get_kv(), 0, kv.get_kv(), 0, 1);
     kv.get_map().erase("a");
     kv.validate();
     kv2.get_map()["a"] = "value1";
@@ -203,7 +227,7 @@ TEST(TestMovement, SimpleMovementWithoutPMNK)
     KVArrayValidator<int, int, int> kv2;
 
     // move d and e
-    move_records(kv2.get_kv(), 0, kv.get_kv(), 3, 2);
+    kv.move_records(kv2.get_kv(), 0, kv.get_kv(), 3, 2);
     kv.get_map().erase(4);
     kv.get_map().erase(5);
     kv.validate();
@@ -212,14 +236,14 @@ TEST(TestMovement, SimpleMovementWithoutPMNK)
     kv2.validate();
 
     // move b
-    move_records(kv2.get_kv(), 0, kv.get_kv(), 1, 1);
+    kv.move_records(kv2.get_kv(), 0, kv.get_kv(), 1, 1);
     kv.get_map().erase(2);
     kv.validate();
     kv2.get_map()[2] = 2000;
     kv2.validate();
 
     // move a
-    move_records(kv2.get_kv(), 0, kv.get_kv(), 0, 1);
+    kv.move_records(kv2.get_kv(), 0, kv.get_kv(), 0, 1);
     kv.get_map().erase(1);
     kv.validate();
     kv2.get_map()[1] = 1000;
@@ -228,15 +252,17 @@ TEST(TestMovement, SimpleMovementWithoutPMNK)
 
 TEST(TestUnsorted, Sortedness)
 {
-    KVArray<string, string, uint16_t, false> kv;
-    kv.insert("b", "value2");
-    kv.insert("e", "value5");
-    kv.insert("d", "value4");
-    kv.insert("a", "value1");
-    kv.insert("c", "value3");
+    using NodeUpd = Node<std::string, std::string, uint16_t, false>;
+    SArray<uint16_t> kv;
+
+    NodeUpd::insert(kv, "b", "value2");
+    NodeUpd::insert(kv, "e", "value5");
+    NodeUpd::insert(kv, "d", "value4");
+    NodeUpd::insert(kv, "a", "value1");
+    NodeUpd::insert(kv, "c", "value3");
 
     {
-        auto iter = kv.iterate();
+        auto iter = NodeUpd::iterate(kv);
         string key, value;
         EXPECT_TRUE(iter.next(&key, &value));
         EXPECT_EQ(key, "b");
@@ -256,8 +282,8 @@ TEST(TestUnsorted, Sortedness)
     }
 
     {
-        auto kv_sorted = *kv.convert_to_sorted();
-        auto iter = kv_sorted.iterate();
+        kv.sort_slots();
+        auto iter = NodeUpd::iterate(kv);
         string key, value;
         EXPECT_TRUE(iter.next(&key, &value));
         EXPECT_EQ(key, "a");

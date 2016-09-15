@@ -458,13 +458,14 @@ template <class KeyEncoder, class ValueEncoder,
          class PMNK_Type = typename KeyEncoder::Type>
 class CompoundEncoder : public PMNKEncoder<typename KeyEncoder::Type, PMNK_Type>
 {
+public:
+
     using K = typename KeyEncoder::Type;
     using V = typename ValueEncoder::Type;
+    using PMNK = PMNK_Type;
 
     using ActualKeyEncoder = typename std::conditional<std::is_same<K, PMNK_Type>::value,
         DummyEncoder<K>, KeyEncoder>::type;
-
-public:
 
     /** \brief Returns encoded length of a key-value pair */
     static size_t get_payload_length(const K& key, const V& value)
