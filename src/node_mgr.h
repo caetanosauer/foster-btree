@@ -64,17 +64,16 @@ public:
  * \tparam Allocator Class used to allocate and free memory for nodes.
  */
 template <
-    class Node,
-    class IdGenerator,
-    class Allocator = std::allocator<Node>
+    class NodePointer,
+    class IdGenerator = AtomicCounterIdGenerator<uint32_t>,
+    class Allocator = std::allocator<typename NodePointer::PointeeType>
 >
 class BtreeNodeManager
 {
 public:
 
     using IdType = typename IdGenerator::Type;
-    using NodePointer = typename Node::NodePointer;
-    using KeyType = typename Node::KeyType;
+    using Node = typename NodePointer::PointeeType;
 
     /*
      * \brief Allocate and construct an empty node.

@@ -80,6 +80,7 @@ public:
     bool operator==(const PlainPtr& other) const { return other.ptr_ == ptr_; }
 
     operator void*() { return ptr_; }
+    T* get() const { return ptr_; }
 
     friend std::ostream& operator<< (std::ostream& out, const PlainPtr<T>& ptr)
     {

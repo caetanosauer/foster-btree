@@ -28,6 +28,7 @@
 #include "exceptions.h"
 #include "assertions.h"
 #include "lrtype.h"
+#include "btree_adoption.h"
 
 namespace foster {
 
@@ -45,27 +46,36 @@ public:
 
     using KeyType = K;
     using ValueType = V;
-    using EncoderType = Encoder<K, V>;
     using LoggerType = Logger;
+    using ThisType = Node<K, V, Search, Encoder, Logger, Sorted>;
+    using EncoderType = Encoder<K, V>;
+
+    template <typename N>
+    using SlotNumber = typename N::PointeeType::SlotNumber;
+    template <typename N>
+    using PayloadPtr = typename N::PointeeType::PayloadPtr;
 
     static constexpr bool LoggingOn = !std::is_void<Logger>::value;
+
+    template <typename N>
+    static void initialize(N) {}
 
     /**
      * \brief Insert a key-value pair into the array.
      * \returns true if insertion succeeded (i.e., if there was enough free space)
      */
     template <typename N>
-    static bool insert(N& node, const K& key, const V& value, bool logit = true)
+    static bool insert(N node, const K& key, const V& value, bool logit = true)
     {
         // 1. Insert key and allocate empty payload space for the pair
-        typename N::SlotNumber slot {0};
+        SlotNumber<N> slot {0};
         size_t payload_length = Encoder<K,V>::get_payload_length(key, value);
         if (!insert_key(node, key, payload_length, slot)) {
             return false;
         }
 
         // 2. Encode (or serialize) the key-value pair into the payload.
-        void* payload_addr = node.get_payload_for_slot(slot);
+        void* payload_addr = node->get_payload_for_slot(slot);
         Encoder<K,V>::encode(payload_addr, key, value);
         // TODO in a profile run with debug level 0, the call below is still registered!
         // assert<3>(!Sorted || is_sorted());
@@ -100,31 +110,31 @@ public:
      * \returns true if insertion succeeded (i.e., if there was enough free space)
      */
     template <typename N>
-    static bool insert_key(N& node, const K& key, size_t payload_length,
-            typename N::SlotNumber& slot)
+    static bool insert_key(N node, const K& key, size_t payload_length,
+            SlotNumber<N>& slot)
     {
         // 1. Find slot into which to insert new pair.
-        if (Sorted && find_slot(node, key, nullptr, slot)) {
+        if (Sorted && find_slot(node, key, slot)) {
             throw ExistentKeyException<K>(key);
         }
         else if (!Sorted) {
-            slot = node.slot_count();
+            slot = node->slot_count();
         }
 
         // 2. Allocate space in the slot array for the encoded payload.
-        typename N::PayloadPtr payload;
-        if (!node.allocate_payload(payload, payload_length)) {
+        PayloadPtr<N> payload;
+        if (!node->allocate_payload(payload, payload_length)) {
             // No space left
             return false;
         }
 
         // 3. Insert slot with PMNK and pointer to the allocated payload.
-        if (!node.insert_slot(slot)) {
+        if (!node->insert_slot(slot)) {
             // No space left -- free previously allocated payload.
-            node.free_payload(payload, payload_length);
+            node->free_payload(payload, payload_length);
             return false;
         }
-        node.get_slot(slot) = { Encoder<K,V>::get_pmnk(key), payload, false };
+        node->get_slot(slot) = { Encoder<K,V>::get_pmnk(key), payload, false };
 
         return true;
     }
@@ -134,20 +144,20 @@ public:
      * \throws KeyNotFoundException if key does not exist in the array.
      */
     template <typename N>
-    static bool remove(N& node, const K& key, bool must_exist = true, bool logit = true)
+    static bool remove(N node, const K& key, bool must_exist = true, bool logit = true)
     {
         // 1. Find slot containing the given key.
-        typename N::SlotNumber slot;
-        if (!find_slot(node, key, nullptr, slot)) {
+        SlotNumber<N> slot;
+        if (!find_slot(node, key, slot)) {
             if (must_exist) { throw KeyNotFoundException<K>(key); }
             else { return false; }
         }
 
         // 2. Free the payload and delete the slot.
-        typename N::PayloadPtr payload = node.get_slot(slot).ptr;
-        size_t payload_length = Encoder<K,V>::get_payload_length(node.get_payload(payload));
-        node.free_payload(payload, payload_length);
-        node.delete_slot(slot);
+        PayloadPtr<N> payload = node->get_slot(slot).ptr;
+        size_t payload_length = Encoder<K,V>::get_payload_length(node->get_payload(payload));
+        node->free_payload(payload, payload_length);
+        node->delete_slot(slot);
 
         if (logit) { log(node, LRType::Remove, key); }
 
@@ -155,7 +165,7 @@ public:
     }
 
     template <typename N>
-    static void truncate_keys(N& node, size_t length)
+    static void truncate_keys(N node, size_t length)
     {
         static_assert(std::is_same<K, string>::value,
                 "Method truncate_keys is only available for string keys");
@@ -164,13 +174,13 @@ public:
 
         K key;
         V value;
-        typename N::SlotNumber i = 0;
-        while (i < node.slot_count()) {
-            auto& slot = node.get_slot(i);
-            Encoder<K,V>::decode(node.get_payload(slot.ptr), &key, &value, &slot.key);
+        SlotNumber<N> i = 0;
+        while (i < node->slot_count()) {
+            auto& slot = node->get_slot(i);
+            Encoder<K,V>::decode(node->get_payload(slot.ptr), &key, &value, &slot.key);
 
-            void* payload_addr = node.get_payload_for_slot(i);
-            size_t old_len = node.get_payload_count(Encoder<K,V>::get_payload_length(payload_addr));
+            void* payload_addr = node->get_payload_for_slot(i);
+            size_t old_len = node->get_payload_count(Encoder<K,V>::get_payload_length(payload_addr));
 
             // truncate first 'length' characters of key and update PMNK
             key.erase(0, length);
@@ -178,13 +188,13 @@ public:
 
             // update payload with truncated key
             Encoder<K,V>::encode(payload_addr, key, value);
-            size_t new_len = node.get_payload_count(Encoder<K,V>::get_payload_length(payload_addr));
+            size_t new_len = node->get_payload_count(Encoder<K,V>::get_payload_length(payload_addr));
 
             // if truncated key occupies less payload blocks, shift accordingly
             assert<1>(new_len <= old_len);
             if (new_len < old_len) {
-                typename N::PayloadPtr p_end = slot.ptr + new_len;
-                node.free_payload(p_end, length);
+                PayloadPtr<N> p_end = slot.ptr + new_len;
+                node->free_payload(p_end, length);
             }
 
             i++;
@@ -196,85 +206,21 @@ public:
      * \see find_slot
      */
     template <typename N>
-    static bool find(const N& node, const K& key)
+    static bool find(N node, const K& key)
     {
-        typename N::SlotNumber slot {0};
-        return find_slot<N, K, void>(node, key, static_cast<V*>(nullptr), slot);
+        SlotNumber<N> slot {0};
+        return find_slot<N>(node, key, slot);
     }
 
     template <typename N>
-    static bool find(const N& node, const K& key, V& value)
+    static bool find(N node, const K& key, V& value)
     {
-        typename N::SlotNumber slot {0};
-        return find_slot(node, key, &value, slot);
+        SlotNumber<N> slot {0};
+        char* value_addr;
+        bool ret = find_slot(node, key, slot, &value_addr);
+        Encoder<K, V>::decode_value(value_addr, &value);
+        return ret;
     }
-
-    template <typename NodePtr, typename Adoption>
-    static NodePtr traverse(NodePtr branch, const K& key, bool for_update,
-            Adoption* adoption = nullptr, unsigned depth = 0)
-    {
-        // If this is root node, latch it here
-        if (depth == 0) { branch->acquire_read(); }
-
-        NodePtr child {nullptr};
-
-        // Descend into the target child node
-        while (branch) {
-            // Branch nodes that participate in a traversal must not be empty
-            assert<1>(branch->slot_count() > 0 || !branch->is_foster_empty());
-            assert<1>(branch->has_reader());
-
-            // If current branch does not contain the key, it must be in a foster child
-            if (!branch->key_range_contains(key)) {
-                // TODO cannot convert from base pointer to derived pointer
-                // TODO level class should not know about existence of foster child
-                NodePtr foster;
-                branch->get_foster_child(foster);
-                assert<1>(foster);
-
-                foster->acquire_read();
-                branch->release_read();
-                branch = foster;
-                continue;
-            }
-
-            // find method guarantees that the next child will contain the value (i.e., the branch
-            // pointer) associated with the slot where the key would be inserted if not found. The
-            // return value (a Boolean "found") can be safely ignored.
-            find(branch, key, &child);
-            assert<1>(child);
-
-            // Latch child node before proceeding
-            latch_pointer(child, for_update);
-
-            // Try do adopt child's foster child -- restart traversal if it works
-            if (adoption && adoption->try_adopt(branch, child)) {
-                unlatch_pointer(child, for_update);
-                continue;
-            }
-
-            break;
-        }
-
-        // Release latch on parent
-        branch->release_read();
-
-        // Now we found the target child node, but key may be somewhere in the foster chain
-        assert<1>(child->fence_contains(key));
-        while (child && !child->key_range_contains(key)) {
-            NodePtr foster;
-            child->get_foster_child(foster);
-
-            latch_pointer(foster, for_update);
-            unlatch_pointer(child, for_update);
-            child = foster;
-        }
-
-        assert<1>(child, "Traversal reached null pointer");
-
-        return traverse(child, key, for_update, depth + 1);
-    }
-
 
 protected:
 
@@ -295,17 +241,20 @@ protected:
      */
     // TODO parametrize comparison function
     template <typename N>
-    static bool find_slot(N& node, const K& key, V* value, typename N::SlotNumber& slot)
+    static bool find_slot(N node, const K& key, SlotNumber<N>& slot,
+            char** value_addr = nullptr)
     {
-        if (!Sorted) { return find_slot_unsorted(node, key, value, slot); }
+        if (!Sorted) { return find_slot_unsorted(node, key, slot, value_addr); }
 
         auto pmnk = Encoder<K,V>::get_pmnk(key);
-        if (Search{}(node, pmnk, slot, 0, node.slot_count())) {
+        if (Search{}(*node, pmnk, slot, 0, node->slot_count())) {
             // Found poor man's normalized key -- now check if rest of the key matches
             auto found_pmnk = pmnk;
             while (found_pmnk == pmnk) {
                 K found_key;
-                Encoder<K,V>::decode(node.get_payload_for_slot(slot), &found_key, value, &pmnk);
+                auto payload = node->get_payload_for_slot(slot);
+                char* vaddr = Encoder<K,V>::decode_key(payload, &found_key, &pmnk);
+                if (value_addr) { *value_addr = vaddr; }
 
                 if (found_key == key) {
                     return true;
@@ -317,8 +266,8 @@ protected:
 
                 // Not a match. Try next slot, which might have the same pmnk.
                 slot++;
-                if (slot >= node.slot_count()) { break; }
-                found_pmnk = node.get_slot(slot).key;
+                if (slot >= node->slot_count()) { break; }
+                found_pmnk = node->get_slot(slot).key;
             }
         }
 
@@ -326,27 +275,32 @@ protected:
         // the value pointer, if a valid one is given, will contain whatever value was found in that
         // slot -- provided that the array contains at least one slot. This is useful for traversal
         // of branch nodes in a B-tree (\see BtreeLevel::traverse).
-        if (value && slot > 0) {
-            assert<1>(slot <= node.slot_count());
+        if (value_addr && slot > 0) {
+            assert<1>(slot <= node->slot_count());
             // Slot contains a key value greater than or equal to the searched key. In the former
             // case, we must return the value of the previous slot for correct traversal. The latter
             // case cannot occur here, because we would have returned true above.
             slot--;
-            Encoder<K,V>::decode(node.get_payload_for_slot(slot), nullptr, value, nullptr);
+            auto payload = node->get_payload_for_slot(slot);
+            char* vaddr = Encoder<K,V>::decode_key(payload, nullptr, nullptr);
+            if (value_addr) { *value_addr = vaddr; }
         }
         return false;
     }
 
     template <typename N>
-    static bool find_slot_unsorted(N& node, const K& key, V* value, typename N::SlotNumber& slot)
+    static bool find_slot_unsorted(N node, const K& key, SlotNumber<N>& slot, char** value_addr)
     {
         auto pmnk = Encoder<K,V>::get_pmnk(key);
         K found_key;
+        char* ret;
 
         // Simple linear search -- return one past the last slot if not found (append)
-        for (typename N::SlotNumber i = 0; i < node.slot_count(); i++) {
-            if (node.get_slot(i).key == pmnk) {
-                Encoder<K,V>::decode(node.get_payload_for_slot(i), &found_key, value, &pmnk);
+        for (SlotNumber<N> i = 0; i < node->slot_count(); i++) {
+            if (node->get_slot(i).key == pmnk) {
+                auto payload = node->get_payload_for_slot(i);
+                ret = Encoder<K,V>::decode_key(payload, &found_key, &pmnk);
+                if (value_addr) { *value_addr = ret; }
                 if (found_key == key) {
                     slot = i;
                     return true;
@@ -354,25 +308,25 @@ protected:
             }
         }
 
-        slot = node.slot_count();
+        slot = node->slot_count();
         return false;
     }
 
 public:
 
     template <typename N>
-    static size_t get_payload_length(const N& node, typename N::SlotNumber s)
+    static size_t get_payload_length(N node, SlotNumber<N> s)
     {
-        const auto& slot = node.get_slot(s);
-        return Encoder<K,V>::get_payload_length(node.get_payload(slot.ptr));
+        const auto& slot = node->get_slot(s);
+        return Encoder<K,V>::get_payload_length(node->get_payload(slot.ptr));
     }
 
     /// \brief Decodes key and value associated with a given slot number
     template <typename N>
-    static void read_slot(const N& node, typename N::SlotNumber s, K* key, V* value)
+    static void read_slot(N node, SlotNumber<N> s, K* key, V* value)
     {
-        const auto& slot = node.get_slot(s);
-        Encoder<K,V>::decode(node.get_payload(slot.ptr), key, value, &slot.key);
+        const auto& slot = node->get_slot(s);
+        Encoder<K,V>::decode(node->get_payload(slot.ptr), key, value, &slot.key);
     }
 
     /**
@@ -382,61 +336,61 @@ public:
     class Iterator
     {
     public:
-        Iterator(const N& node) :
-            current_slot_{0}, node_{&node}
+        Iterator(N node) :
+            current_slot_{0}, node_{node}
         {}
 
         bool next(K* key, V* value)
         {
             if (current_slot_ >= node_->slot_count()) { return false; }
 
-            read_slot(*node_, current_slot_, key, value);
+            read_slot(node_, current_slot_, key, value);
             current_slot_++;
 
             return true;
         }
 
     private:
-        typename N::SlotNumber current_slot_;
-        const N* node_;
+        SlotNumber<N> current_slot_;
+        N node_;
     };
 
     /// \brief Yields an iterator instance to sequentially read all key-value pairs
     template <typename N>
-    static Iterator<N> iterate(const N& node)
+    static Iterator<N> iterate(N node)
     {
         return Iterator<N>{node};
     }
 
     /// Debugging/utility function to print the array's contents.
     template <typename N>
-    static void print(const N& node, std::ostream& o)
+    static void print(N node, std::ostream& o)
     {
         using std::endl;
 
-        for (typename N::SlotNumber i = 0; i < node.slot_count(); i++) {
-            o << "Slot " << i << " [pmnk = " << node.get_slot(i).key << ", payload = "
-                << node.get_slot(i).ptr << ", ghost = " << node.get_slot(i).ghost << "]"
-                << endl;
+        for (SlotNumber<N> i = 0; i < node->slot_count(); i++) {
+            o << "\tSlot " << i << " [pmnk = " << node->get_slot(i).key << ", payload = "
+                << node->get_slot(i).ptr << ", ghost = " << node->get_slot(i).ghost << "]";
+            // << endl;
 
             K key;
             V value;
-            auto pmnk = node.get_slot(i).key;
-            Encoder<K,V>::decode(node.get_payload_for_slot(i), &key, &value, &pmnk);
+            auto pmnk = node->get_slot(i).key;
+            Encoder<K,V>::decode(node->get_payload_for_slot(i), &key, &value, &pmnk);
             o << "\tk = " << key << ", v = " << value << endl;
         }
     }
 
     /// Debugging/testing function to verify if contents are sorted
     template <typename N>
-    static bool is_sorted(const N& node)
+    static bool is_sorted(N node)
     {
         K key, prev_key;
-        auto prev_pmnk = node.get_slot(0).key;
+        auto prev_pmnk = node->get_slot(0).key;
 
-        for (typename N::SlotNumber i = 0; i < node.slot_count(); i++) {
-            auto pmnk = node.get_slot(i).key;
-            Encoder<K,V>::decode(node.get_payload_for_slot(i), &key, nullptr, &pmnk);
+        for (SlotNumber<N> i = 0; i < node->slot_count(); i++) {
+            auto pmnk = node->get_slot(i).key;
+            Encoder<K,V>::decode(node->get_payload_for_slot(i), &key, nullptr, &pmnk);
 
             if (i > 0) {
                 if (pmnk < prev_pmnk) return false;
@@ -448,26 +402,6 @@ public:
         }
 
         return true;
-    }
-
-private:
-
-    template <typename NodePtr>
-    static void latch_pointer(NodePtr child, bool ex_mode)
-    {
-        // Exclusive latch is only required at leaf nodes during normal traversal.
-        // (If required, splits, merges, and adoptions will attempt upgrade on branch nodes)
-        if (child->level() == 1 && ex_mode) { child->acquire_write(); }
-        else { child->acquire_read(); }
-    }
-
-    template <typename NodePtr>
-    static void unlatch_pointer(NodePtr child, bool ex_mode)
-    {
-        // Exclusive latch is only required at leaf nodes during normal traversal.
-        // (If required, splits, merges, and adoptions will attempt upgrade on branch nodes)
-        if (child->level() == 1 && ex_mode) { child->release_write(); }
-        else { child->release_read(); }
     }
 
 };

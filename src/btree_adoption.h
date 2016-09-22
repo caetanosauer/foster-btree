@@ -28,26 +28,31 @@
  * Btree logic built on top of a node data structure with support for foster relationships.
  */
 
+#include <memory>
+
 #include "assertions.h"
 
 namespace foster {
 
 template <
-    class ParentNodePointer,
-    class ChildNodePointer
+    class Node,
+    class NodeMgr
 >
-struct EagerAdoption
+class EagerAdoption
 {
-    static constexpr bool Latching = ParentNodePointer::PointeeType::LatchingEnabled;
+public:
 
-    template <class NodeMgr>
-    static bool try_adopt(ParentNodePointer& parent, ChildNodePointer child, NodeMgr& node_mgr)
+    EagerAdoption(std::shared_ptr<NodeMgr> node_mgr)
+        : node_mgr_(node_mgr)
+    {}
+
+    template <typename N>
+    bool try_adopt(N& parent, N child)
     {
         if (!child) { return false; }
 
-        ChildNodePointer foster;
-        child->get_foster_child(foster);
-        if (!foster) { return false; }
+        N foster;
+        if (!Node::get_foster_child(child, foster)) { return false; }
 
         // First attempt latch upgrade on parent and on child (if it's not already latched exclusively)
         bool child_latch_upgraded = false;
@@ -63,7 +68,7 @@ struct EagerAdoption
         }
 
         // Latching was successful or it's disabled -- proceed with adoption
-        bool success = do_adopt(parent, child, foster, node_mgr);
+        bool success = do_adopt(parent, child, foster);
 
         // Release/downgrade acquired latches
         parent->downgrade();
@@ -72,29 +77,39 @@ struct EagerAdoption
         return success;
     }
 
-    template <class NodeMgr>
-    static bool do_adopt(ParentNodePointer& parent, ChildNodePointer child, ChildNodePointer foster,
-            NodeMgr& node_mgr)
+    template <typename N>
+    bool do_adopt(N& parent, N child, N foster)
     {
-        using KeyType = typename NodeMgr::KeyType;
-
         // Insert separator key and pointer into parent
-        KeyType foster_key;
-        child->get_foster_key(&foster_key);
-        bool inserted = parent->insert(foster_key, foster);
+        typename Node::KeyType foster_key;
+        Node::get_foster_key(child, foster_key);
+        bool inserted = Node::insert(parent, foster_key, foster);
 
         // Split parent as long as insertion fails
+        // TODO this is the same code as in btree.h -> unify
         while (!inserted) {
-            auto new_node = node_mgr.construct_node();
-            parent = parent->split_for_insertion(foster_key, new_node);
-            inserted = parent->insert(foster_key, foster);
+            auto new_node = node_mgr_->construct_node();
+            Node::split(parent, new_node);
+
+            // Decide if insertion should go into old or new node
+            if (!Node::key_range_contains(parent, foster_key)) {
+                assert<1>(Node::key_range_contains(new_node, foster_key));
+                new_node->acquire_write();
+                parent->release_write();
+                parent = new_node;
+            }
+
+            inserted = Node::insert(parent, foster_key, foster);
         }
 
         // Clear foster relationship on child
-        child->unlink_foster_child();
+        Node::unset_foster_child(child);
 
         return true;
     }
+
+private:
+    std::shared_ptr<NodeMgr> node_mgr_;
 };
 
 } // namespace foster

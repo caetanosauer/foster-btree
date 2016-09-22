@@ -28,74 +28,57 @@
 #include "encoding.h"
 #include "search.h"
 #include "kv_array.h"
-#include "node.h"
+#include "node_refactored.h"
+#include "node_foster.h"
 #include "node_mgr.h"
 #include "pointers.h"
-#include "btree_level.h"
-#include "btree_static.h"
-#include "btree_adoption.h"
+#include "btree.h"
+#include "latch_mutex.h"
 
 constexpr size_t DftArrayBytes = 4096;
 constexpr size_t DftAlignment = 8;
 
-template<class PMNK_Type>
-using SArray = foster::SlotArray<PMNK_Type, DftArrayBytes, DftAlignment>;
+using DftPMNK = uint16_t;
 
-template<class K, class V>
-using KVArray = foster::KeyValueArray<K, V,
-      SArray<uint16_t>,
-      foster::BinarySearch<SArray<uint16_t>>,
-      foster::DefaultEncoder<K, V, uint16_t>
+using SArray = foster::SlotArray<
+    DftPMNK,
+    DftArrayBytes,
+    DftAlignment,
+    // base classes
+    foster::FosterNodePayloads,
+    foster::MutexLatch
 >;
 
 template<class K, class V>
-using KVArrayNoPMNK = foster::KeyValueArray<K, V,
-      SArray<K>,
-      foster::BinarySearch<SArray<K>>,
-      foster::DefaultEncoder<K, V, K>
+using Node = foster::Node<
+      K, V,
+      foster::BinarySearch<SArray>,
+      foster::GetEncoder<DftPMNK>::template type,
+      void // Logger
 >;
 
-template<class K, class V>
-using BTNode = foster::BtreeNode<K, V,
-    KVArray,
-    foster::PlainPtr
->;
+template <class K, class V>
+using FosterNode = foster::FosterNode<K, V, Node, foster::AssignmentEncoder>;
 
-template<class K, class V>
-using BTNodeNoPMNK = foster::BtreeNode<K, V,
-    KVArrayNoPMNK,
-    foster::PlainPtr
->;
+template <class T>
+using NodePointer = foster::PlainPtr<T>;
 
 template<class Node>
-using NodeMgr = foster::BtreeNodeManager<Node, foster::AtomicCounterIdGenerator<unsigned>>;
+using NodeMgr = foster::BtreeNodeManager<NodePointer<SArray>>;
 
-template<class K, class V, unsigned L>
-using BTLevel = foster::BtreeLevel<
-    K, V, L,
-    BTNode,
-    foster::EagerAdoption,
-    NodeMgr
+template <class K, class V>
+using Btree = foster::GenericBtree<
+    K, V,
+    SArray,
+    FosterNode,
+    NodePointer,
+    NodeMgr,
+    foster::EagerAdoption
 >;
-
-template<class K, class V, unsigned L>
-using BTLevelNoPMNK = foster::BtreeLevel<
-    K, V, L,
-    BTNodeNoPMNK,
-    foster::EagerAdoption,
-    NodeMgr
->;
-
-template<class K, class V, unsigned L>
-using SBtree = foster::StaticBtree<K, V, L, BTLevel>;
-
-template<class K, class V, unsigned L>
-using SBtreeNoPMNK = foster::StaticBtree<K, V, L, BTLevelNoPMNK>;
-
 
 TEST(MainTest, SimpleInsertions)
 {
-    SBtree<string, string, 2> tree;
+    Btree<string, string> tree;
     tree.put("key", "value");
     tree.put("key2", "value_2");
     tree.put("key0", "value__0");
@@ -112,8 +95,8 @@ TEST(MainTest, SimpleInsertions)
 
 TEST(MainTest, ManyInsertions)
 {
-    SBtree<string, string, 2> tree;
-    int max = 100000;
+    Btree<string, string> tree;
+    int max = 10000;
 
     for (int i = 0; i < max; i++) {
         tree.put("key" + std::to_string(i), "value" + std::to_string(i));
@@ -126,13 +109,13 @@ TEST(MainTest, ManyInsertions)
         string delivered;
         bool found = tree.get("key" + std::to_string(i), delivered);
         ASSERT_TRUE(found);
-        ASSERT_EQ(expected, delivered);
+        EXPECT_EQ(expected, delivered);
     }
 }
 
 TEST(DeletionTest, ManyDeletions)
 {
-    SBtree<string, string, 1> tree;
+    Btree<string, string> tree;
 
     // insert all keys from 0 to max-1
     int max = 1000;
@@ -161,8 +144,8 @@ TEST(DeletionTest, ManyDeletions)
 
 TEST(IntegerKeyTest, ManyInsertions)
 {
-    SBtreeNoPMNK<int, int, 2> tree;
-    int max = 100000;
+    Btree<int, int> tree;
+    int max = 10000;
 
     for (int i = 0; i < max; i++) {
         tree.put(i, i);

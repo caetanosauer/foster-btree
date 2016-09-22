@@ -188,6 +188,10 @@ public:
 
     ~SlotArray() {};
 
+    // Used in super types that need delayed initialization (e.g., Logger)
+    template <typename... Args>
+    void initialize(Args...) {};
+
     /** \brief Amount of free space (in bytes) between end of slot vector and begin of payloads. */
     size_t free_space()
     {

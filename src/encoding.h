@@ -499,14 +499,27 @@ public:
     static void decode(const void* src, K* key, V* value = nullptr, const PMNK_Type* pmnk = nullptr)
     {
         const char* p = reinterpret_cast<const char*>(src);
+        p = decode_key(src, key, pmnk);
+        decode_value(p, value);
+    }
+
+    static char* decode_key(const void* src, K* key, const PMNK_Type* pmnk = nullptr)
+    {
+        const char* p = reinterpret_cast<const char*>(src);
         p = ActualKeyEncoder::decode(p, key);
-        ValueEncoder::decode(p, value);
 
         // If we are not encoding key explicitly, but just reusing PMNK, we assign it here
         if (key && std::is_same<K, PMNK_Type>::value) {
             assert<1>(pmnk, "PMNK required to decode this key");
             *key = *pmnk;
         }
+
+        return const_cast<char*>(p);
+    }
+
+    static void decode_value(const char* src, V* value)
+    {
+        ValueEncoder::decode(src, value);
     }
 };
 

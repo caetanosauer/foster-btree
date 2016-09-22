@@ -32,10 +32,12 @@
 #include "node_foster.h"
 #include "pointers.h"
 
+// TODO improve tests by using generic definitions and better paremetrization
+
 constexpr size_t DftArrayBytes = 8192;
 constexpr size_t DftAlignment = 8;
 
-template<class K, class PMNK_Type>
+template<class PMNK_Type>
 using SArray = foster::SlotArray<
     PMNK_Type,
     DftArrayBytes,
@@ -47,7 +49,7 @@ using SArray = foster::SlotArray<
 template<class K, class V, class PMNK_Type, bool Sorted = true>
 using Node = foster::Node<
       K, V,
-      foster::BinarySearch<SArray<K, PMNK_Type>>,
+      foster::BinarySearch<SArray<PMNK_Type>>,
       foster::GetEncoder<PMNK_Type>::template type,
       void, // Logger
       Sorted
@@ -56,10 +58,17 @@ using Node = foster::Node<
 template <class T>
 using NodePointer = foster::PlainPtr<T>;
 
+struct DummyAdoption
+{
+    template <typename T>
+    bool try_adopt(T&, T, T) { return false; }
+};
+
 TEST(TestInsertions, SimpleInsertions)
 {
     using N = Node<std::string, std::string, uint16_t>;
-    SArray<std::string, uint16_t> node;
+    SArray<uint16_t> n;
+    NodePointer<SArray<uint16_t>> node {&n};
 
     N::insert(node, "key", "value");
     N::insert(node, "key2", "value_2");
@@ -79,7 +88,8 @@ TEST(TestInsertions, SimpleInsertions)
 TEST(TestInsertions, SimpleInsertionsWithoutPMNK)
 {
     using N = Node<int, int, int>;
-    SArray<int, int> node;
+    SArray<int> n;
+    NodePointer<SArray<int>> node {&n};
 
     N::insert(node, 2, 2000);
     N::insert(node, 0, 0);
@@ -100,7 +110,8 @@ TEST(TestInsertions, SimpleInsertionsWithoutPMNK)
 TEST(TestInsertions, SimpleInsertionsWithoutPMNKStringValue)
 {
     using N = Node<int, std::string, int>;
-    SArray<int, int> node;
+    SArray<int> n;
+    NodePointer<SArray<int>> node {&n};
 
     N::insert(node, 2, "200");
     N::insert(node, 0, "00");
@@ -118,12 +129,18 @@ TEST(TestInsertions, SimpleInsertionsWithoutPMNKStringValue)
     ASSERT_EQ(v, "3000");
 }
 
+template <class K, class V>
+using BaseN = Node<K, V, uint16_t>;
+
 TEST(TestSplit, SimpleSplit)
 {
-    using BaseN = Node<std::string, std::string, uint16_t>;
-    using N = foster::FosterNode<BaseN, NodePointer, foster::AssignmentEncoder>;
-    using S = SArray<std::string, uint16_t>;
-    S node;
+    using N = foster::FosterNode<std::string, std::string, BaseN, foster::AssignmentEncoder>;
+    using S = SArray<uint16_t>;
+    S n; NodePointer<S> node {&n};
+
+    bool valid;
+    string key;
+    NodePointer<S> actual_child;
 
     N::insert(node, "key2", "value_2");
     N::insert(node, "key0", "value__0");
@@ -132,8 +149,93 @@ TEST(TestSplit, SimpleSplit)
     N::insert(node, "key4", "value_____4");
     N::insert(node, "key5", "value______5");
 
-    S node2;
-    N::add_foster_child(node, NodePointer<S>(&node2));
+    S n2; NodePointer<S> node2 {&n2};
+    N::add_foster_child(node, node2);
+
+    EXPECT_TRUE(N::is_low_key_infinity(node));
+    EXPECT_TRUE(N::is_high_key_infinity(node));
+    EXPECT_TRUE(N::is_low_key_infinity(node2));
+    EXPECT_TRUE(N::is_high_key_infinity(node2));
+
+    N::rebalance(node);
+    valid = N::get_foster_child(node, actual_child);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(actual_child, node2);
+    EXPECT_EQ(node->slot_count(), 3);
+    EXPECT_EQ(node2->slot_count(), 3);
+
+    valid = N::get_foster_key(node, key);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(key, "key3");
+    EXPECT_TRUE(N::is_low_key_infinity(node));
+    EXPECT_TRUE(N::is_high_key_infinity(node));
+
+    valid = N::get_low_key(node2, key);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(key,  "key3");
+    EXPECT_TRUE(N::is_high_key_infinity(node2));
+
+    N::insert(node2, "key6", "value_______6");
+    EXPECT_EQ(node2->slot_count(), 4);
+
+    S n3; NodePointer<S> node3 {&n3};
+    N::add_foster_child(node2, node3);
+    N::rebalance(node2);
+
+    EXPECT_EQ(node2->slot_count(), 2);
+    EXPECT_EQ(node3->slot_count(), 2);
+    valid = N::get_low_key(node2, key);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(key,  "key3");
+    valid = N::get_foster_key(node2, key);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(key,  "key5");
+    valid = N::get_low_key(node3, key);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(key,  "key5");
+    EXPECT_TRUE(N::is_high_key_infinity(node2));
+    EXPECT_TRUE(N::is_high_key_infinity(node3));
+    valid = N::get_foster_child(node2, actual_child);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(actual_child, node3);
+
+    S n4; NodePointer<S> node4 {&n4};
+    N::add_foster_child(node2, node4);
+    N::rebalance(node2);
+
+    EXPECT_EQ(node2->slot_count(), 1);
+    EXPECT_EQ(node4->slot_count(), 1);
+    valid = N::get_low_key(node2, key);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(key,  "key3");
+    valid = N::get_foster_key(node2, key);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(key,  "key4");
+    valid = N::get_low_key(node4, key);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(key,  "key4");
+    EXPECT_TRUE(N::is_high_key_infinity(node2));
+    EXPECT_TRUE(N::is_high_key_infinity(node4));
+    valid = N::get_foster_child(node2, actual_child);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(actual_child, node4);
+}
+
+TEST(TestSplit, SimpleSplitWithoutPMNK)
+{
+    using N = foster::FosterNode<uint16_t, uint16_t, BaseN, foster::AssignmentEncoder>;
+    using S = SArray<uint16_t>;
+
+    S n; NodePointer<S> node {&n};
+    N::insert(node, 2, 2000);
+    N::insert(node, 0, 0);
+    N::insert(node, 1, 1000);
+    N::insert(node, 3, 3000);
+    N::insert(node, 4, 4000);
+    N::insert(node, 5, 5000);
+
+    S n2; NodePointer<S> node2 {&n2};
+    N::add_foster_child(node, node2);
 
     EXPECT_TRUE(N::is_low_key_infinity(node));
     EXPECT_TRUE(N::is_high_key_infinity(node));
@@ -141,170 +243,178 @@ TEST(TestSplit, SimpleSplit)
     EXPECT_TRUE(N::is_high_key_infinity(node2));
     NodePointer<S> actual_child;
     N::get_foster_child(node, actual_child);
-    EXPECT_EQ(actual_child, NodePointer<S>(&node2));
+    EXPECT_EQ(actual_child, node2);
 
     N::rebalance(node);
     N::get_foster_child(node, actual_child);
-    EXPECT_EQ(actual_child, NodePointer<S>(&node2));
-    EXPECT_EQ(node.slot_count(), 3);
-    EXPECT_EQ(node2.slot_count(), 3);
+    EXPECT_EQ(actual_child, node2);
+    EXPECT_EQ(node->slot_count(), 3);
+    EXPECT_EQ(node2->slot_count(), 3);
 
-    string key;
+    uint16_t key;
     N::get_foster_key(node, key);
-    EXPECT_EQ(key, "key3");
+    EXPECT_EQ(key, 3);
     EXPECT_TRUE(N::is_low_key_infinity(node));
     EXPECT_TRUE(N::is_high_key_infinity(node));
 
     N::get_low_key(node2, key);
-    EXPECT_EQ(key,  "key3");
+    EXPECT_EQ(key,  3);
     EXPECT_TRUE(N::is_high_key_infinity(node2));
 
-    N::insert(node2, "key6", "value_______6");
-    EXPECT_EQ(node2.slot_count(), 4);
-    S node3;
-    N::add_foster_child(node2, NodePointer<S>(&node3));
+    N::insert(node2, 6, 6000);
+    EXPECT_EQ(node2->slot_count(), 4);
+    S n3; NodePointer<S> node3 {&n3};
+    N::add_foster_child(node2, node3);
     N::rebalance(node2);
-    EXPECT_EQ(node2.slot_count(), 2);
-    EXPECT_EQ(node3.slot_count(), 2);
+    EXPECT_EQ(node2->slot_count(), 2);
+    EXPECT_EQ(node3->slot_count(), 2);
 
-    S node4;
-    N::add_foster_child(node2, NodePointer<S>(&node4));
+    S n4; NodePointer<S> node4 {&n4};
+    N::add_foster_child(node2, node4);
     N::rebalance(node2);
-    EXPECT_EQ(node2.slot_count(), 1);
-    EXPECT_EQ(node4.slot_count(), 1);
+    EXPECT_EQ(node2->slot_count(), 1);
+    EXPECT_EQ(node4->slot_count(), 1);
 }
 
-// TEST(TestSplit, SimpleSplitWithoutPMNK)
-// {
-//     using N = Node<std::string, std::string, uint16_t>;
-//     SArray<std::string, int> node;
+template <typename N, typename K, typename Ptr>
+void verify_foster_chain(Ptr node, int count)
+{
+    EXPECT_TRUE(N::is_low_key_infinity(node));
 
-//     using NodePointer = BTNodeNoPMNK<int, int>::NodePointer;
+    Ptr child;
+    for (int i = 0; i < count; i++) {
+        bool found = N::get_foster_child(node, child);
+        ASSERT_TRUE(found);
 
-//     BTNodeNoPMNK<int, int> node;
-//     N::insert(node, 2, 2000);
-//     N::insert(node, 0, 0);
-//     N::insert(node, 1, 1000);
-//     N::insert(node, 3, 3000);
-//     N::insert(node, 4, 4000);
-//     N::insert(node, 5, 5000);
+        K foster_key, low_key;
+        found = N::get_foster_key(node, foster_key);
+        ASSERT_TRUE(found);
+        found = N::get_low_key(child, low_key);
+        ASSERT_TRUE(found);
+        EXPECT_TRUE(N::is_high_key_infinity(node));
+        EXPECT_TRUE(N::is_high_key_infinity(child));
+        EXPECT_EQ(foster_key, low_key);
 
-//     BTNodeNoPMNK<int, int> node2;
+        node = child;
+    }
 
-//     node.add_foster_child(NodePointer(&node2));
-//     ASSERT_TRUE(node.is_low_key_infinity());
-//     ASSERT_TRUE(node.is_high_key_infinity());
-//     ASSERT_TRUE(node2.is_low_key_infinity());
-//     ASSERT_TRUE(node2.is_high_key_infinity());
-//     ASSERT_TRUE(node.get_foster_child() == NodePointer(&node2));
+    // foster chain should be over by now
+    bool found = N::get_foster_child(node, child);
+    EXPECT_TRUE(!found);
+}
 
-//     node.rebalance_foster_child<NodePointer>();
-//     EXPECT_TRUE(!node.is_foster_empty());
-//     int key;
-//     node.get_foster_key(&key);
-//     EXPECT_EQ(key, 3);
-//     ASSERT_TRUE(node.is_low_key_infinity());
-//     ASSERT_TRUE(node.is_high_key_infinity());
+TEST(TestFosterChain, ManyInsertions)
+{
+    using N = foster::FosterNode<std::string, std::string, BaseN, foster::AssignmentEncoder>;
+    using S = SArray<uint16_t>;
 
-//     node2.get_fence_keys(&key, nullptr);
-//     ASSERT_TRUE(key == 3);
-//     ASSERT_TRUE(node2.is_high_key_infinity());
+    S n; NodePointer<S> node {&n};
+    int max = 10000;
+    int splits = 0;
 
-//     N::insert(node2, 6, 6000);
-//     BTNodeNoPMNK<int, int> node3;
-//     node2.add_foster_child(NodePointer(&node3));
-//     node2.rebalance_foster_child<NodePointer>();
+    for (int i = 0; i < max; i++) {
+        auto key = "key" + std::to_string(i);
+        auto value = "value" + std::to_string(i);
+        auto target = N::traverse(node, key, true, static_cast<DummyAdoption*>(nullptr));
+        bool inserted = N::insert(target, key, value);
+        if (!inserted) {
+            // TODO: yes, there's a memory leak here
+            NodePointer<S> new_node = new S;
+            N::split(target, new_node);
+            splits++;
 
-//     BTNodeNoPMNK<int, int> node4;
-//     node2.add_foster_child(NodePointer(&node4));
-//     node2.rebalance_foster_child<NodePointer>();
-// }
+            verify_foster_chain<N, std::string>(node, splits);
 
-// TEST(TestPrefixTruncation, SimpleTruncation)
-// {
-//     using N = Node<std::string, std::string, uint16_t>;
-//     SArray<std::string, int> node;
+            target = N::traverse(node, key, true, static_cast<DummyAdoption*>(nullptr));
+            inserted = N::insert(target, key, value);
+            EXPECT_TRUE(inserted);
+        }
+    }
+}
 
-//     using NodePointer = BTNodeTrunc<int>::NodePointer;
+TEST(TestPrefixTruncation, SimpleTruncation)
+{
+    // using N = Node<std::string, std::string, uint16_t>;
+    // using S = SArray<int>;
 
-//     BTNodeTrunc<int> node;
-//     N::insert(node, "longkeyprefix0", 0);
-//     N::insert(node, "longkeyprefix1", 1);
-//     N::insert(node, "longkeyprefix2", 2);
-//     N::insert(node, "longkeyprefix3", 3);
-//     N::insert(node, "longkeyprefix4", 4);
-//     N::insert(node, "longkeyprefixF", 95);
-//     N::insert(node, "longkeyprefixG", 96);
-//     N::insert(node, "longkeyprefixH", 97);
-//     N::insert(node, "longkeyprefixI", 98);
-//     N::insert(node, "longkeyprefixJ", 99);
+    // S node;
+    // N::insert(node, "longkeyprefix0", 0);
+    // N::insert(node, "longkeyprefix1", 1);
+    // N::insert(node, "longkeyprefix2", 2);
+    // N::insert(node, "longkeyprefix3", 3);
+    // N::insert(node, "longkeyprefix4", 4);
+    // N::insert(node, "longkeyprefixF", 95);
+    // N::insert(node, "longkeyprefixG", 96);
+    // N::insert(node, "longkeyprefixH", 97);
+    // N::insert(node, "longkeyprefixI", 98);
+    // N::insert(node, "longkeyprefixJ", 99);
 
-//     BTNodeTrunc<int> node2;
-//     node.add_foster_child(NodePointer{&node2});
-//     node.rebalance_foster_child<NodePointer>();
+    // S node2;
+    // N::add_foster_child(node, NodePointer{&node2});
+    // N::rebalance(node);
 
-//     N::insert(node2, "longkeyprefixV", 90);
-//     N::insert(node2, "longkeyprefixW", 91);
-//     N::insert(node2, "longkeyprefixX", 92);
-//     N::insert(node2, "longkeyprefixY", 93);
-//     N::insert(node2, "longkeyprefixZ", 94);
+    // N::insert(node2, "longkeyprefixV", 90);
+    // N::insert(node2, "longkeyprefixW", 91);
+    // N::insert(node2, "longkeyprefixX", 92);
+    // N::insert(node2, "longkeyprefixY", 93);
+    // N::insert(node2, "longkeyprefixZ", 94);
 
-//     BTNodeTrunc<int> node3;
-//     node2.add_foster_child(NodePointer{&node3});
-//     node2.rebalance_foster_child<NodePointer>();
+    // S node3;
+    // N::add_foster_child(node2, NodePointer{&node3});
+    // N::rebalance(node2);
 
-//     // At this point, unlinking the foster child of node 2 should adjust its fence keys to:
-//     // low = longkeyprefix5 and high = longkeyprefix90
-//     // Which means that only the values A, B, C, ... will be stored
-//     node2.unlink_foster_child();
+    // // At this point, unlinking the foster child of node 2 should adjust its fence keys to:
+    // // low = longkeyprefix5 and high = longkeyprefix90
+    // // Which means that only the values A, B, C, ... will be stored
+    // N::unset_foster_child(node2);
 
-//     N::insert(node2, "longkeyprefixA", 90);
-//     N::insert(node2, "longkeyprefixB", 91);
-//     N::insert(node2, "longkeyprefixC", 92);
-//     N::insert(node2, "longkeyprefixD", 93);
-//     N::insert(node2, "longkeyprefixE", 94);
+    // N::insert(node2, "longkeyprefixA", 90);
+    // N::insert(node2, "longkeyprefixB", 91);
+    // N::insert(node2, "longkeyprefixC", 92);
+    // N::insert(node2, "longkeyprefixD", 93);
+    // N::insert(node2, "longkeyprefixE", 94);
 
-//     // 1) Make sure that a query with the long key returns the expected value
-//     int v;
-//     bool found;
-//     found = N::find(node2, "longkeyprefixA", v);
-//     EXPECT_EQ(v, 90); EXPECT_TRUE(found);
-//     found = N::find(node2, "longkeyprefixB", v);
-//     EXPECT_EQ(v, 91); EXPECT_TRUE(found);
-//     found = N::find(node2, "longkeyprefixC", v);
-//     EXPECT_EQ(v, 92); EXPECT_TRUE(found);
-//     found = N::find(node2, "longkeyprefixD", v);
-//     EXPECT_EQ(v, 93); EXPECT_TRUE(found);
-//     found = N::find(node2, "longkeyprefixE", v);
-//     EXPECT_EQ(v, 94); EXPECT_TRUE(found);
+    // // 1) Make sure that a query with the long key returns the expected value
+    // int v;
+    // bool found;
+    // found = N::find(node2, "longkeyprefixA", v);
+    // EXPECT_EQ(v, 90); EXPECT_TRUE(found);
+    // found = N::find(node2, "longkeyprefixB", v);
+    // EXPECT_EQ(v, 91); EXPECT_TRUE(found);
+    // found = N::find(node2, "longkeyprefixC", v);
+    // EXPECT_EQ(v, 92); EXPECT_TRUE(found);
+    // found = N::find(node2, "longkeyprefixD", v);
+    // EXPECT_EQ(v, 93); EXPECT_TRUE(found);
+    // found = N::find(node2, "longkeyprefixE", v);
+    // EXPECT_EQ(v, 94); EXPECT_TRUE(found);
 
-//     // 2) Make sure that the actual keys stored do not contain the prefix
-//     auto node2_p = BTNode<string, int>::NodePointer::static_pointer_cast(NodePointer{&node2});
-//     found = N::find(*node2_p, "A", v);
-//     EXPECT_EQ(v, 90); EXPECT_TRUE(found);
-//     found = N::find(*node2_p, "B", v);
-//     EXPECT_EQ(v, 91); EXPECT_TRUE(found);
-//     found = N::find(*node2_p, "C", v);
-//     EXPECT_EQ(v, 92); EXPECT_TRUE(found);
-//     found = N::find(*node2_p, "D", v);
-//     EXPECT_EQ(v, 93); EXPECT_TRUE(found);
-//     found = N::find(*node2_p, "E", v);
-//     EXPECT_EQ(v, 94); EXPECT_TRUE(found);
+    // // 2) Make sure that the actual keys stored do not contain the prefix
+    // auto node2_p = BTNode<string, int>::NodePointer::static_pointer_cast(NodePointer{&node2});
+    // found = N::find(*node2_p, "A", v);
+    // EXPECT_EQ(v, 90); EXPECT_TRUE(found);
+    // found = N::find(*node2_p, "B", v);
+    // EXPECT_EQ(v, 91); EXPECT_TRUE(found);
+    // found = N::find(*node2_p, "C", v);
+    // EXPECT_EQ(v, 92); EXPECT_TRUE(found);
+    // found = N::find(*node2_p, "D", v);
+    // EXPECT_EQ(v, 93); EXPECT_TRUE(found);
+    // found = N::find(*node2_p, "E", v);
+    // EXPECT_EQ(v, 94); EXPECT_TRUE(found);
 
-//     // 3) Test iterator
-//     auto iter = node2.iterate();
-//     string k;
-//     char first_char = 'A';
-//     int first_v = 90;
-//     int i = 0;
-//     while (iter.next(&k, &v)) {
-//         std::stringstream ss;
-//         ss << "longkeyprefix" << static_cast<char>(first_char + i);
-//         EXPECT_EQ(k, ss.str());
-//         EXPECT_EQ(v, first_v + i);
-//         i++;
-//     }
-// }
+    // // 3) Test iterator
+    // auto iter = node2.iterate();
+    // string k;
+    // char first_char = 'A';
+    // int first_v = 90;
+    // int i = 0;
+    // while (iter.next(&k, &v)) {
+    //     std::stringstream ss;
+    //     ss << "longkeyprefix" << static_cast<char>(first_char + i);
+    //     EXPECT_EQ(k, ss.str());
+    //     EXPECT_EQ(v, first_v + i);
+    //     i++;
+    // }
+}
 
 int main(int argc, char **argv)
 {
