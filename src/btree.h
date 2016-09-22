@@ -54,6 +54,11 @@ public:
         BranchNode::initialize(root_);
     }
 
+    ~GenericBtree()
+    {
+        // TODO free/destroy all nodes
+    }
+
     void put(const K& key, const V& value, bool upsert = false)
     {
         auto leaf = BranchNode::traverse(root_, key, true /* for_update */, adoption_.get());

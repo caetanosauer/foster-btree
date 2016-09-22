@@ -48,24 +48,28 @@ namespace foster {
  * \tparam Allocator The allocator used to manage memory for nodes.
  */
 template <
-    class Node,
-    class Allocator = std::allocator<Node>
+    class K,
+    class V,
+    class SArray,
+    template <class,class> class Node,
+    template <class> class Pointer,
+    template <class> class NodeMgr
 >
 class SortedList {
 public:
 
-    using NodePointer = typename Node::NodePointer;
-    using KeyType = typename Node::KeyType;
-    using ValueType = typename Node::ValueType;
+    using NodeMgrType = NodeMgr<SArray>;
+    using NodePointer = Pointer<SArray>;
+    using N = Node<K, V>;
 
     /**
      * \brief Constructs an empty list, with a single empty node.
-     * \oaram[in] allocator Allocator object used to allocate and free nodes
      */
-    SortedList(const Allocator& allocator = Allocator{})
-        : allocator_(allocator)
+    SortedList()
     {
-        head_ = allocate_node();
+        node_mgr_ = std::make_shared<NodeMgrType>();
+        head_ = node_mgr_->construct_node();
+        N::initialize(head_);
     }
 
     ~SortedList()
@@ -76,12 +80,13 @@ public:
     /**
      * \brief Traversal method: finds node whose key range contains the given key
      */
-    NodePointer traverse(const KeyType& key) const
+    NodePointer traverse(const K& key) const
     {
         NodePointer p = head_;
 
-        while (p && !p->key_range_contains(key)) {
-            p = p->get_foster_child();
+        while (p && !N::key_range_contains(p, key)) {
+            bool has_foster = N::get_foster_child(p, p);
+            if (!has_foster) { p = nullptr; }
         }
         assert<1>(p, "Traversal on sorted list reached null pointer");
 
@@ -91,26 +96,33 @@ public:
     /**
      * \brief Insert new key-value pair, splitting the target node if necessary.
      */
-    void put(const KeyType& key, const ValueType& value)
+    void put(const K& key, const V& value)
     {
         NodePointer node = traverse(key);
-        bool inserted = node->insert(key, value);
+        bool inserted = N::insert(node, key, value);
 
         while (!inserted) {
             // Node is full -- split required
-            NodePointer new_node = allocate_node();
-            node = node->split_for_insertion(key, new_node);
-            inserted = node->insert(key, value);
+            auto new_node = node_mgr_->construct_node();
+            N::split(node, new_node);
+
+            // Decide if insertion should go into old or new node
+            if (!N::key_range_contains(node, key)) {
+                assert<1>(N::key_range_contains(new_node, key));
+                node = new_node;
+            }
+
+            inserted = N::insert(node, key, value);
         }
     }
 
     /**
      * \brief Retrieve a value given its associated key.
      */
-    bool get(const KeyType& key, ValueType& value)
+    bool get(const K& key, V& value)
     {
         NodePointer node = traverse(key);
-        return node->find(key, &value);
+        return N::find(node, key, value);
     }
 
     /// Print method for debugging and testing
@@ -119,8 +131,9 @@ public:
         NodePointer p = head_;
         while (p) {
             std::cout << "====== NODE " << p->id() << " ======" << std::endl;
-            p->print(out);
-            p = p->get_foster_child();
+            N::print(p, out);
+            bool has_foster = N::get_foster_child(p);
+            if (!has_foster) { p = nullptr; }
         }
     }
 
@@ -129,19 +142,7 @@ protected:
     /// \brief Pointer to the head node, i.e., the first node in the linked list.
     NodePointer head_;
 
-    /// \brief Allocator object used to allocate memory for new nodes.
-    Allocator allocator_;
-
-    /// \brief: Allocate and construct a new node to be added to the linked list.
-    NodePointer allocate_node()
-    {
-        // allocate space for node and invoke constructor
-        void* addr = allocator_.allocate(1 /* number of nodes to allocate */);
-        return NodePointer(new (addr) Node());
-    }
-
-    // TODO implement destroy_node
-
+    std::shared_ptr<NodeMgrType> node_mgr_;
 };
 
 

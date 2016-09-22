@@ -27,33 +27,49 @@
 #include "slot_array.h"
 #include "encoding.h"
 #include "search.h"
-#include "kv_array.h"
-#include "node.h"
+#include "node_refactored.h"
+#include "node_foster.h"
+#include "node_mgr.h"
 #include "sorted_list.h"
 #include "pointers.h"
 
 constexpr size_t DftArrayBytes = 8192;
 constexpr size_t DftAlignment = 8;
 
-template<class PMNK_Type>
-using SArray = foster::SlotArray<PMNK_Type, DftArrayBytes, DftAlignment>;
+using DftPMNK = uint16_t;
 
-template<class K, class V>
-using KVArray = foster::KeyValueArray<K, V,
-      SArray<uint16_t>,
-      foster::BinarySearch<SArray<uint16_t>>,
-      foster::DefaultEncoder<K, V, uint16_t>
+using SArray = foster::SlotArray<
+    DftPMNK,
+    DftArrayBytes,
+    DftAlignment,
+    // base classes
+    foster::FosterNodePayloads
 >;
 
 template<class K, class V>
-using BTNode = foster::BtreeNode<K, V,
-    KVArray,
-    foster::PlainPtr
+using Node = foster::Node<
+      K, V,
+      foster::BinarySearch<SArray>,
+      foster::GetEncoder<DftPMNK>::template type,
+      void // Logger
 >;
+
+template <class K, class V>
+using FosterNode = foster::FosterNode<K, V, Node, foster::AssignmentEncoder>;
+
+template <class T>
+using NodePointer = foster::PlainPtr<T>;
+
+template<class Node>
+using NodeMgr = foster::BtreeNodeManager<NodePointer<SArray>>;
 
 template<class K, class V, class PMNK_Type>
 using SortedList = foster::SortedList<
-    BTNode<K, V>
+    K, V,
+    SArray,
+    FosterNode,
+    NodePointer,
+    NodeMgr
 >;
 
 
