@@ -89,11 +89,11 @@ public:
      * '&& sizeof...(Args)' is just required to make enable_if work, because it must depend on all
      * template arguments
      */
-    template <typename... Args>
-    static meta::EnableIf<LoggingOn && sizeof...(Args)>
-        log(const Args&... args)
+    template <typename N, typename... Args>
+    static meta::EnableIf<LoggingOn && sizeof...(Args) && sizeof(N)>
+        log(N node, const Args&... args)
     {
-        Logger::log(args...);
+        node->log(args...);
     }
 
     template <typename... Args>
