@@ -29,7 +29,7 @@
 #include "encoding.h"
 #include "search.h"
 #include "pointers.h"
-#include "node_refactored.h"
+#include "node.h"
 #include "move_records.h"
 
 constexpr size_t DftArrayBytes = 8192;

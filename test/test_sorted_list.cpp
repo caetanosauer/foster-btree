@@ -27,7 +27,7 @@
 #include "slot_array.h"
 #include "encoding.h"
 #include "search.h"
-#include "node_refactored.h"
+#include "node.h"
 #include "node_foster.h"
 #include "node_mgr.h"
 #include "sorted_list.h"
