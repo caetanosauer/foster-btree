@@ -27,7 +27,6 @@
 #include "slot_array.h"
 #include "encoding.h"
 #include "search.h"
-#include "kv_array.h"
 #include "node_refactored.h"
 #include "node_foster.h"
 #include "pointers.h"
