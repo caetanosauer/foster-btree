@@ -129,10 +129,11 @@ public:
     static constexpr bool LatchingOn = !std::is_void<Latch>::value;
 
     template <typename N>
-    static void initialize(N node)
+    static void initialize(N node, uint8_t level = 0)
     {
         BaseNode::initialize(node);
         set_foster_child(node, N {nullptr});
+        node->set_level(level);
     }
 
     template <typename N, typename T>
