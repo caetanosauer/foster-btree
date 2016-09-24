@@ -35,13 +35,14 @@
 
 constexpr size_t DftArrayBytes = 8192;
 constexpr size_t DftAlignment = 8;
-
+using NodeId = uint32_t;
 using DftPMNK = uint16_t;
 
 using SArray = foster::SlotArray<
     DftPMNK,
     DftArrayBytes,
     DftAlignment,
+    NodeId,
     // base classes
     foster::FosterNodePayloads
 >;

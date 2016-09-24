@@ -34,9 +34,10 @@
 
 constexpr size_t DftArrayBytes = 8192;
 constexpr size_t DftAlignment = 8;
+using NodeId = uint32_t;
 
 template<class PMNK_Type>
-using SArray = foster::SlotArray<PMNK_Type, DftArrayBytes, DftAlignment>;
+using SArray = foster::SlotArray<PMNK_Type, DftArrayBytes, DftAlignment, NodeId>;
 
 template<class K, class V, class PMNK_Type, bool Sorted = true>
 using Node = foster::Node<
