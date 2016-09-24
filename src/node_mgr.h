@@ -83,13 +83,14 @@ public:
         return construct_node(idgen_.generate());
     }
 
-    NodePointer construct_node(IdType id)
+    // TODO rethink node initialization!
+    NodePointer construct_node(IdType /* id */)
     {
         // allocate space for node and invoke constructor
         void* addr = allocator_.allocate(1 /* number of nodes to allocate */);
         auto node = NodePointer {new (addr) Node};
 
-        node->initialize(id);
+        // node->initialize(id);
         return node;
     }
 
