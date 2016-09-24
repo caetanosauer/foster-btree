@@ -81,7 +81,6 @@ template<
     class Key,
     size_t TotalSize = 8192,
     size_t Alignment = 8,
-    class IdType = uint32_t,
     typename... SuperTypes
 >
 class alignas(Alignment) SlotArray : public SuperTypes...
@@ -146,7 +145,6 @@ protected:
     struct alignas(Alignment) HeaderData {
         SlotNumber slot_end;
         PayloadPtr payload_begin;
-        IdType id;
     };
 
     /** @name Compile-time constants and types **/
@@ -185,7 +183,7 @@ private:
 public:
 
     /** \brief Default constructor. No arguments required */
-    SlotArray() : header_{0, PayloadCount, IdType{0}}
+    SlotArray() : header_{0, PayloadCount}
     {};
 
     ~SlotArray() {};
@@ -200,10 +198,6 @@ public:
         return header_.payload_begin * sizeof(PayloadBlock)
             - header_.slot_end * sizeof(Slot);
     }
-
-    IdType id() { return header_.id; }
-
-    void set_id(IdType id) { header_.id = id; }
 
     /**
      * @name Payload management methods
