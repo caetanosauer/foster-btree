@@ -88,7 +88,7 @@ public:
         // Split parent as long as insertion fails
         // TODO this is the same code as in btree.h -> unify
         while (!inserted) {
-            auto new_node = node_mgr_->construct_node();
+            auto new_node = node_mgr_->template construct_node<Node>();
             Node::split(parent, new_node);
 
             // Decide if insertion should go into old or new node

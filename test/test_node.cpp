@@ -29,6 +29,7 @@
 #include "search.h"
 #include "node.h"
 #include "node_foster.h"
+#include "node_mgr.h"
 #include "pointers.h"
 
 // TODO improve tests by using generic definitions and better paremetrization
@@ -56,6 +57,9 @@ using Node = foster::Node<
 
 template <class T>
 using NodePointer = foster::PlainPtr<T>;
+
+template <class T>
+using NodeMgr = foster::BtreeNodeManager<NodePointer<T>>;
 
 struct DummyAdoption
 {
@@ -306,6 +310,7 @@ TEST(TestFosterChain, ManyInsertions)
 {
     using N = foster::FosterNode<std::string, std::string, BaseN, foster::AssignmentEncoder>;
     using S = SArray<uint16_t>;
+    NodeMgr<S> node_mgr;
 
     S n; NodePointer<S> node {&n};
     int max = 10000;
@@ -318,7 +323,7 @@ TEST(TestFosterChain, ManyInsertions)
         bool inserted = N::insert(target, key, value);
         if (!inserted) {
             // TODO: yes, there's a memory leak here
-            NodePointer<S> new_node = new S;
+            auto new_node = node_mgr.construct_node<N>();
             N::split(target, new_node);
             splits++;
 

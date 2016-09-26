@@ -78,19 +78,13 @@ public:
     /*
      * \brief Allocate and construct an empty node.
      */
-    NodePointer construct_node()
+    template <typename N, typename... Args>
+    NodePointer construct_node(Args... args)
     {
-        return construct_node(idgen_.generate());
-    }
-
-    // TODO rethink node initialization!
-    NodePointer construct_node(IdType /* id */)
-    {
-        // allocate space for node and invoke constructor
+        // allocate space for node, invoke constructor, and initialize according to static class
         void* addr = allocator_.allocate(1 /* number of nodes to allocate */);
         auto node = NodePointer {new (addr) Node};
-
-        // node->initialize(id);
+        N::initialize(node, args...);
         return node;
     }
 

@@ -68,7 +68,7 @@ public:
     SortedList()
     {
         node_mgr_ = std::make_shared<NodeMgrType>();
-        head_ = node_mgr_->construct_node();
+        head_ = node_mgr_->template construct_node<N>();
         N::initialize(head_);
     }
 
@@ -103,7 +103,7 @@ public:
 
         while (!inserted) {
             // Node is full -- split required
-            auto new_node = node_mgr_->construct_node();
+            auto new_node = node_mgr_->template construct_node<N>();
             N::split(node, new_node);
 
             // Decide if insertion should go into old or new node

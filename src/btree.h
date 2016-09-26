@@ -50,8 +50,7 @@ public:
     {
         node_mgr_ = std::make_shared<NodeMgrType>();
         adoption_ = std::make_shared<AdoptionType>(node_mgr_);
-        root_ = node_mgr_->construct_node();
-        BranchNode::initialize(root_);
+        root_ = node_mgr_->template construct_node<BranchNode>();
     }
 
     ~GenericBtree()
@@ -75,7 +74,7 @@ public:
         while (!inserted) {
             // Node is full -- split required
             assert<1>(LeafNode::is_latched(leaf, true));
-            auto new_node = node_mgr_->construct_node();
+            auto new_node = node_mgr_->template construct_node<LeafNode>();
             LeafNode::split(leaf, new_node);
 
             // Decide if insertion should go into old or new node

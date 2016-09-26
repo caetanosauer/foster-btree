@@ -320,7 +320,6 @@ public:
     template <typename N>
     static void split(N node, N new_node)
     {
-        initialize(new_node);
         add_foster_child(node, new_node);
         rebalance(node);
     }
