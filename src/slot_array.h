@@ -214,10 +214,14 @@ public:
      */
     bool allocate_payload(PayloadPtr& ptr, size_t length)
     {
+        assert<1>(header_.payload_begin <= get_payload_end());
+
         size_t space_needed = get_payload_count(length) * Alignment;
         if (free_space() < space_needed) { return false; }
         header_.payload_begin -= get_payload_count(length);
         ptr = header_.payload_begin;
+
+        sanity_check();
         return true;
     }
 
@@ -231,6 +235,8 @@ public:
         PayloadPtr first_p = get_first_payload();
         shift_payloads(first_p - p_count, first_p, last_p - first_p);
         ptr = last_p - p_count;
+
+        sanity_check();
         return true;
     }
 
@@ -241,13 +247,14 @@ public:
      */
     void free_payload(PayloadPtr ptr, size_t length)
     {
-        assert<3>(ptr >= header_.payload_begin, DBGINFO, "Invalid payload pointer");
+        assert<1>(length <= ArrayBytes);
+        assert<1>(ptr >= header_.payload_begin, DBGINFO, "Invalid payload pointer");
 
         // Move all payloads behind me forward, essentially deleting my blocks.
-        size_t count = get_payload_count(length);
-        size_t shift = ptr - header_.payload_begin;
+        size_t shift = get_payload_count(length);
+        size_t count = ptr - header_.payload_begin;
 
-        shift_payloads(header_.payload_begin + count, header_.payload_begin, shift);
+        shift_payloads(header_.payload_begin + shift, header_.payload_begin, count);
     }
 
     /**
@@ -263,6 +270,9 @@ public:
      */
     bool shift_payloads(PayloadPtr to, PayloadPtr from, size_t count)
     {
+        assert<1>(to <= get_payload_end());
+        assert<1>(from <= get_payload_end());
+
         PayloadPtr first_affected = std::min(from, to);
         PayloadPtr last_affected = std::max(from, to) + count - 1;
         int shift = to - from;
@@ -274,12 +284,16 @@ public:
 
         // Perform the actual movement
         memmove(&payloads_[to], &payloads_[from], count * sizeof(PayloadBlock));
+        sanity_check();
 
         // Adjust pointers in the slot vector to account for the movement above.
-        for (SlotNumber i = 0; i < slot_count(); i++) {
-            if (slots_[i].ptr >= first_affected && slots_[i].ptr <= last_affected) {
-                slots_[i].ptr += shift;
+        if (count > 0) {
+            for (SlotNumber i = 0; i < slot_count(); i++) {
+                if (slots_[i].ptr >= first_affected && slots_[i].ptr <= last_affected) {
+                    slots_[i].ptr += shift;
+                }
             }
+            sanity_check();
         }
 
         // Adjust payload_begin if there was growth or shrinkage
@@ -287,6 +301,7 @@ public:
             header_.payload_begin += shift;
         }
 
+        sanity_check();
         return true;
     }
 
@@ -353,6 +368,7 @@ public:
             new (&slots_[slot]) Key;
         }
 
+        sanity_check();
         return true;
     }
 
@@ -366,6 +382,8 @@ public:
             memmove(&slots_[slot], &slots_[slot+1], sizeof(Slot) * (slot_count() - slot));
         }
         header_.slot_end--;
+
+        sanity_check();
     }
 
     bool slots_are_sorted() const
@@ -376,6 +394,7 @@ public:
             if (slots_[i].key < prev) { return false; }
             prev = slots_[i].key;
         }
+        sanity_check();
         return true;
     }
 
@@ -391,6 +410,7 @@ public:
     /** \brief Print method used for debugging */
     void print_info()
     {
+        sanity_check();
         cout << "Key size = " << sizeof(Key) << " bytes" << endl;
         cout << "PayloadPtr size = " << sizeof(PayloadPtr) << " bytes" << endl;
         cout << "PayloadPtr size (actual) = " << PayloadPtrSize << " bytes" << endl;
@@ -409,7 +429,15 @@ public:
     {
         auto cmp = [](const Slot& a, const Slot& b) { return a.key < b.key; };
         std::stable_sort(slots_, slots_ + slot_count(), cmp);
+
+        sanity_check();
     }
+
+    void sanity_check() const
+    {
+        assert<1>(header_.payload_begin <= get_payload_end());
+    }
+
 };
 
 } // namespace foster
