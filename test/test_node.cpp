@@ -31,6 +31,8 @@
 #include "node_foster.h"
 #include "node_mgr.h"
 #include "pointers.h"
+#include "adoption.h"
+#include "latch_mutex.h"
 
 // TODO improve tests by using generic definitions and better paremetrization
 
@@ -43,6 +45,7 @@ using SArray = foster::SlotArray<
     DftArrayBytes,
     DftAlignment,
     // base classes
+    foster::MutexLatch,
     foster::FosterNodePayloads
 >;
 
@@ -65,6 +68,9 @@ struct DummyAdoption
 {
     template <typename T>
     bool try_adopt(T&, T, T) { return false; }
+
+    template <typename T>
+    bool try_grow(T&) { return false; }
 };
 
 TEST(TestInsertions, SimpleInsertions)
@@ -313,6 +319,7 @@ TEST(TestFosterChain, ManyInsertions)
     NodeMgr<S> node_mgr;
 
     S n; NodePointer<S> node {&n};
+    N::initialize(node);
     int max = 10000;
     int splits = 0;
 
@@ -334,6 +341,105 @@ TEST(TestFosterChain, ManyInsertions)
             EXPECT_TRUE(inserted);
         }
     }
+}
+
+TEST(TestGrowth, SimpleGrowth)
+{
+    using S = SArray<uint16_t>;
+    using N = foster::FosterNode<std::string, std::string, BaseN, foster::AssignmentEncoder>;
+    using Branch = foster::FosterNode<std::string, NodePointer<S>, BaseN, foster::AssignmentEncoder>;
+    S n; NodePointer<S> node {&n};
+
+    string key;
+    NodePointer<S> actual_child;
+
+    N::insert(node, "key2", "value_2");
+    N::insert(node, "key0", "value__0");
+    N::insert(node, "key1", "value___1");
+    N::insert(node, "key3", "value____3");
+    N::insert(node, "key4", "value_____4");
+    N::insert(node, "key5", "value______5");
+
+    S n2; NodePointer<S> node2 {&n2};
+    N::add_foster_child(node, node2);
+    N::rebalance(node);
+
+    S n3; NodePointer<S> node3 {&n3};
+    Branch::grow(node, node3);
+    EXPECT_EQ(node->slot_count(), 1);
+    EXPECT_EQ(node->level(), 1);
+    EXPECT_EQ(node3->level(), 0);
+
+    NodePointer<S> ptr;
+    std::string min_key = foster::GetMinimumKeyValue<std::string>();
+    bool found = BaseN<std::string, NodePointer<S>>::find(node, min_key, ptr);
+    EXPECT_TRUE(found);
+    EXPECT_EQ(ptr, node3);
+    EXPECT_EQ(ptr->slot_count(), 3);
+
+    EXPECT_TRUE(N::is_low_key_infinity(node));
+    EXPECT_TRUE(N::is_high_key_infinity(node));
+    EXPECT_TRUE(!N::get_foster_child(node, ptr));
+    EXPECT_TRUE(!N::get_foster_key(node, key));
+
+    EXPECT_TRUE(N::is_low_key_infinity(node3));
+    EXPECT_TRUE(N::is_high_key_infinity(node3));
+    EXPECT_TRUE(N::get_foster_child(node3, ptr));
+    EXPECT_EQ(ptr, node2);
+    EXPECT_TRUE(N::get_foster_key(node3, key));
+    EXPECT_EQ(key, "key3");
+}
+
+TEST(TestGrowth, Adoption)
+{
+    using S = SArray<uint16_t>;
+    using N = foster::FosterNode<std::string, std::string,
+          BaseN,
+          foster::AssignmentEncoder,
+          foster::MutexLatch>;
+    using Branch = foster::FosterNode<std::string, NodePointer<S>, BaseN, foster::AssignmentEncoder>;
+    using Adoption = foster::EagerAdoption<Branch, NodeMgr<S>>;
+    S n; NodePointer<S> node {&n};
+
+    string key;
+    NodePointer<S> actual_child;
+
+    N::insert(node, "key2", "value_2");
+    N::insert(node, "key0", "value__0");
+    N::insert(node, "key1", "value___1");
+    N::insert(node, "key3", "value____3");
+    N::insert(node, "key4", "value_____4");
+    N::insert(node, "key5", "value______5");
+
+    S n2; NodePointer<S> node2 {&n2};
+    N::add_foster_child(node, node2);
+    N::rebalance(node);
+    S n3; NodePointer<S> node3 {&n3};
+    Branch::grow(node, node3);
+
+    NodePointer<S> ptr;
+    std::string min_key = foster::GetMinimumKeyValue<std::string>();
+
+    // must acquire latches so that adoption assertions don't complain
+    node->acquire_read();
+    node3->acquire_read();
+    Adoption adoption {std::make_shared<NodeMgr<S>>()};
+    bool adopted = adoption.try_adopt(node, node3);
+    EXPECT_TRUE(adopted);
+
+    EXPECT_TRUE(N::is_low_key_infinity(node));
+    EXPECT_TRUE(N::is_high_key_infinity(node));
+    EXPECT_TRUE(!N::get_foster_child(node, ptr));
+    EXPECT_TRUE(!N::get_foster_key(node, key));
+    EXPECT_EQ(node->slot_count(), 2);
+
+    EXPECT_TRUE(N::is_low_key_infinity(node3));
+    EXPECT_TRUE(!N::get_low_key(node3, key));
+    EXPECT_TRUE(!N::is_high_key_infinity(node3));
+    EXPECT_TRUE(N::get_high_key(node3, key));
+    EXPECT_EQ(key, "key3");
+    EXPECT_TRUE(!N::get_foster_child(node3, ptr));
+    EXPECT_TRUE(!N::get_foster_key(node3, key));
 }
 
 TEST(TestPrefixTruncation, SimpleTruncation)

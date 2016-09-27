@@ -31,6 +31,7 @@
 #include <memory>
 
 #include "assertions.h"
+#include "move_records.h"
 
 namespace foster {
 
@@ -104,6 +105,28 @@ public:
 
         // Clear foster relationship on child
         Node::unset_foster_child(child);
+        Node::set_high_key(child, foster_key);
+
+        return true;
+    }
+
+    template <typename N>
+    bool try_grow(N& root)
+    {
+        // root node should be latched in X mode, which means that "try" always succeeds
+        bool was_x_latch = root->has_writer();
+        assert<1>(root->has_reader() || root->has_writer());
+        // TODO this could starve
+        while (!root->has_writer()) { root->attempt_upgrade(); }
+        assert<1>(root->has_writer());
+
+        auto new_child = node_mgr_->template construct_node<Node>();
+        Node::latch_pointer(new_child, was_x_latch);
+        Node::grow(root, new_child);
+
+        // set pointer to where root's records now are, so that traversal can continue
+        root->release_write();
+        root = new_child;
 
         return true;
     }

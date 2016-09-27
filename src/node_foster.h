@@ -32,6 +32,19 @@
 
 namespace foster {
 
+/**
+ * \brief Returns the minimum value of a certain key type.
+ *
+ * This is used to encode the key associated with the pointer to the first child in a B-tree branch
+ * node. Because key-value pairs are not stored on branch nodes, it does not matter whether the
+ * minimum key actually exists in the B-tree or not. It is just used to guide the traversal without
+ * any special case for the first child pointer. This works because the find method of the node
+ * implementation (actually in KeyValueArray) returns the slot number where the key was found or
+ * where it would be inserted if it was not found.
+ */
+template <class K> K GetMinimumKeyValue() { return std::numeric_limits<K>::min(); }
+template <> string GetMinimumKeyValue() { return ""; }
+
 class FosterNodePayloads
 {
 public:
@@ -103,7 +116,8 @@ public:
     void set_level(uint8_t l) { level_ = l; }
     uint8_t level() { return level_; }
 
-protected:
+    //TODO
+// protected:
 
     std::array<PayloadPtr, FieldCount> foster_payloads_;
     std::array<bool, FieldCount> foster_payload_valid_;
@@ -193,20 +207,29 @@ public:
 
         // Descend into the target child node
         auto child = branch->level() == 0 ? branch :
-            descend_to_child(branch, key, for_update, adoption);
-        assert<1>(is_latched(child));
+            descend_to_child(branch, key, for_update, adoption, depth);
 
         // Release latch on parent
         if (branch->level() > 0) { unlatch_pointer(branch, for_update); }
 
         // Now we found the target child node, but key may be somewhere in the foster chain
+        // TODO if key is in the foster chain, we don't need to latch leaf child in X mode
         assert<1>(fence_contains(child, key));
         while (child && !key_range_contains(child, key)) {
+            // Check if we should grow the tree (i.e., if foster parent is root).
+            // When tree only has one level, this is the only place where we can grow it,
+            // otherwise it is done in descend_to_child
+            assert<1>(is_latched(child));
+            if (child == branch && depth == 0) {
+                adoption->try_grow(child);
+                return traverse(child, key, for_update, adoption, depth + 1);
+            }
+
             N foster;
             bool has_foster = get_foster_child(child, foster);
             assert<1>(has_foster);
-
             latch_pointer(foster, for_update);
+
             unlatch_pointer(child, for_update);
             child = foster;
         }
@@ -226,7 +249,7 @@ protected:
     >
     static meta::EnableIf<std::is_same<N,V>::value && sizeof(Adoption), N>
         descend_to_child(N branch, const K& key, bool for_update,
-            Adoption* adoption = nullptr)
+            Adoption* adoption = nullptr, unsigned depth = 0)
     {
         N child {nullptr};
 
@@ -245,10 +268,15 @@ protected:
 
             // If current branch does not contain the key, it must be in a foster child
             if (!key_range_contains(branch, key)) {
+                // check if we should grow the tree (i.e., if foster parent is root)
+                if (depth == 0) {
+                    adoption->try_grow(branch);
+                    depth++;
+                }
+
                 N foster {nullptr};
                 get_foster_child(branch, foster);
                 assert<1>(foster);
-
                 latch_pointer(foster, for_update);
                 unlatch_pointer(branch, for_update);
                 branch = foster;
@@ -269,12 +297,13 @@ protected:
         }
 
         assert<1>(child);
+        assert<1>(is_latched(child));
         return child;
     }
 
     template <typename N, typename Adoption>
     static meta::EnableIf<!(std::is_same<N,V>::value && sizeof(Adoption)), N>
-        descend_to_child(N branch, const K&, bool, Adoption* = nullptr)
+        descend_to_child(N branch, const K&, bool, Adoption* = nullptr, unsigned = 0)
     {
         return branch;
     }
@@ -362,7 +391,16 @@ public:
     template <typename N>
     static void unset_foster_child(N node)
     {
-        unset_foster_field(node, FosterNodePayloads::FosterPtr);
+        // foster child payload must not be freed -- space must be saved for splits
+        set_foster_field(node, FosterNodePayloads::FosterPtr, N{nullptr});
+        unset_foster_key(node);
+        assert<1>(!get_foster_child(node, node));
+    }
+
+    template <typename N, typename T>
+    static bool set_high_key(N node, const T& value)
+    {
+        return set_foster_field(node, FosterNodePayloads::HighKey, value);
     }
 
     template <typename N>
@@ -415,6 +453,48 @@ public:
         dbg::log<5>("Splitted node {} into {}", *node, *child);
     }
 
+    template <typename N>
+    static void grow(N root, N new_child)
+    {
+        auto slot_count = root->slot_count();
+
+        // TODO Maybe what we need is a NodeMgr method to create a copy of a node with
+        // exactly same contents but different node ID. Or perhaps a copy method in this
+        // static class itself.
+        K foster_key;
+        bool success = get_foster_key(root, foster_key);
+        assert<1>(success, "Could not get foster key in grow operation");
+
+        N foster_child;
+        success = get_foster_child(root, foster_child);
+        assert<1>(success);
+        // BaseNode::print(root, std::cout);
+
+        // TODO it would be easier to just move all foster payloads
+        new_child->format_slots_from(*root);
+        new_child->foster_payloads_ = root->foster_payloads_;
+        new_child->foster_payload_valid_ = root->foster_payload_valid_;
+        unset_low_key(root);
+        unset_foster_child(root);
+        root->clear();
+        initialize(root);
+
+        // BaseNode::print(new_child, std::cout);
+        assert<1>(success, "Could not move records in grow operation");
+        assert<1>(root->slot_count() == 0);
+        assert<1>(new_child->slot_count() == slot_count);
+
+        // First separator key on every branch node is always the minimum key value
+        // (see comments on GetMinimumKeyValue)
+        K key = GetMinimumKeyValue<K>();
+        success = BaseNode::insert(root, key, new_child);
+        assert<1>(success, "Could not add new child in grow operation");
+
+        auto level = root->level();
+        new_child->set_level(level);
+        root->set_level(level+1);
+    }
+
     /// Debugging/testing method to verify node's state
     template <typename N>
     static bool all_keys_in_range(N node)
@@ -429,7 +509,7 @@ public:
 
     /// Debugging/utility function to print the array's contents.
     template <typename N>
-    static void print(N node, std::ostream& o, bool print_slots = true)
+    static void print_node(N node, std::ostream& o = std::cout, bool print_slots = true)
     {
         K key;
         o << "Node low=";
@@ -524,12 +604,6 @@ protected:
         unset_foster_field(node, FosterNodePayloads::LowKey);
     }
 
-    template <typename N, typename T>
-    static bool set_high_key(N node, const T& value)
-    {
-        return set_foster_field(node, FosterNodePayloads::HighKey, value);
-    }
-
     template <typename N>
     static void unset_high_key(N node)
     {
@@ -560,6 +634,7 @@ protected:
             node->set_foster_field(field, payload);
         }
         else if (p_diff != 0) {
+            assert<1>(field != FosterNodePayloads::FosterPtr);
             // field will be resized -- shift payloads accordingly
             PayloadPtr p_from = node->get_first_payload();
             PayloadPtr p_to = p_from + p_diff;
@@ -584,6 +659,7 @@ protected:
             auto old_length = Encoder<N>::get_payload_length(node->get_payload(payload));
             node->free_payload(payload, old_length);
             node->unset_foster_field(field);
+            node->shift_foster_payloads(field, node->get_payload_count(old_length));
         }
     }
 

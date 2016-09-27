@@ -144,7 +144,7 @@ static void copy_records_prealloc(
 }
 
 template <
-class SlotArray,
+      class SlotArray,
       class SlotNumber = typename SlotArray::SlotNumber,
       class PayloadPtr = typename SlotArray::PayloadPtr
     >

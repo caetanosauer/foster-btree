@@ -184,10 +184,13 @@ private:
 public:
 
     /** \brief Default constructor. No arguments required */
-    SlotArray() : header_{0, PayloadCount}
-    {};
+    SlotArray() { clear(); }
+    ~SlotArray() {}
 
-    ~SlotArray() {};
+    void clear()
+    {
+        header_ = {0, PayloadCount};
+    }
 
     /** \brief Amount of free space (in bytes) between end of slot vector and begin of payloads. */
     size_t free_space()
@@ -417,7 +420,7 @@ public:
         out << "PayloadPtr size = " << sizeof(PayloadPtr) << " bytes" << endl;
         out << "PayloadPtr size (actual) = " << PayloadPtrSize << " bytes" << endl;
         out << "Slot size = " << sizeof(Slot) << " bytes" << endl;
-        out << "Array size = " << sizeof(s) << " bytes (should be " << ArrayBytes << ")"
+        out << "Array size = " << sizeof(s) << " bytes (should be " << TotalSize << ")"
             << endl;
         for (SlotNumber i = 0; i < s.slot_count(); i++) {
             out << "Slot " << i << ": key = " << s.slots_[i].key
@@ -434,6 +437,14 @@ public:
         std::stable_sort(slots_, slots_ + slot_count(), cmp);
 
         sanity_check();
+    }
+
+    template <typename S>
+    void format_slots_from(const S& other)
+    {
+        clear();
+        ::memcpy(&slots_, &other.slots_, sizeof(slots_));
+        header_ = other.header_;
     }
 
     void sanity_check() const
