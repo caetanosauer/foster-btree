@@ -111,41 +111,6 @@ struct AssertionFailure : public std::runtime_error {
 };
 
 /**
- * \brief Function object that encapsulates an assertion call.
- *
- * A function object is used instead of a plain function because it allows choosing an empty
- * implementation (effectively disabling the assertion) if a lower debug level is in use.
- *
- * The template class and associated function-call operator use variadic arguments, which allows
- * constructing an arbitrary exception object with an arbitrary list of parameters.
- *
- * @see NoAssert, assert
- */
-template <class E = AssertionFailure, typename... Args>
-struct Assert
-{
-    void operator()(bool assertion, Args... args)
-    {
-        if (assertion) { return; }
-
-        // Assertion does not hold -- handle error accordingly
-        // (std::forward is used to properly pass rvalue arguments to the constructor)
-        throw E(std::forward<Args>(args)...);
-    }
-};
-
-/**
- * \brief Empty function object used when debug level is lower than the given assertion.
- */
-struct NoAssert
-{
-    // No implementation -- code deactivated by debug level
-    void operator()(bool, ...)
-    {
-    }
-};
-
-/**
  * \brief Generic assertion function with support for debug levels.
  * \tparam L Debug level of the assertion; generates empty code (no-op) if higher than global DebugLevel.
  * \tparam E Exception class to throw if assertion fails.
@@ -167,11 +132,25 @@ struct NoAssert
  *
  */
 template <unsigned L = DefaultDebugLevel, class E = AssertionFailure, typename... Args>
-void assert(bool assertion, Args... args)
+typename std::enable_if<L <= DebugLevel>::type
+    assert(bool assertion, Args... args)
 {
-    using AssertType = typename std::conditional<L <= DebugLevel, Assert<E, Args...>, NoAssert>::type;
-    AssertType a;
-    a(assertion, args...);
+    if (assertion) { return; }
+
+    // Assertion does not hold -- handle error accordingly
+    // (std::forward is used to properly pass rvalue arguments to the constructor)
+    throw E(std::forward<Args>(args)...);
+}
+
+/**
+ * Empty assert function which is defined when the given debug level does not match the statically
+ * defined debug level. An empty function essentially gets compild to nothing, meaning that the
+ * assertion will not be evaluated.
+ */
+template <unsigned L = DefaultDebugLevel, class E = AssertionFailure, typename... Args>
+typename std::enable_if<!(L <= DebugLevel)>::type
+    assert(bool, Args...)
+{
 }
 
 } // namespace foster
