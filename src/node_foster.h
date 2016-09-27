@@ -231,19 +231,20 @@ protected:
         N child {nullptr};
 
         assert<1>(branch);
-        while (branch->level() > 0) {
+        while (true) {
+            assert<1>(is_latched(branch));
             // Branch nodes that participate in a traversal must not be empty
             assert<1>(branch->slot_count() > 0 || has_foster_child(branch));
             // assert<1>(branch->has_reader());
 
             // find method guarantees that the next child will contain the value (i.e., the branch
             // pointer) associated with the slot where the key would be inserted if not found.
-            bool found = BaseNode::find(branch, key, child);
+            // This means that the return value of "find" is completely irrelevant.
+            BaseNode::find(branch, key, child);
             assert<1>(child);
 
             // If current branch does not contain the key, it must be in a foster child
-            if (!found) {
-                assert<1>(!key_range_contains(branch, key));
+            if (!key_range_contains(branch, key)) {
                 N foster {nullptr};
                 get_foster_child(branch, foster);
                 assert<1>(foster);
@@ -474,7 +475,7 @@ public:
     static meta::EnableIf<LatchingOn && sizeof(NodePtr), bool>
         is_latched(NodePtr child, bool ex_mode = false)
     {
-        return child->has_reader() && (!ex_mode || child->has_writer());
+        return (!ex_mode && child->has_reader()) || child->has_writer();
     }
 
     template <typename NodePtr>
