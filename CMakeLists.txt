@@ -48,6 +48,9 @@ SET(AM_LDFLAGS "-m64")
 SET(ALL_FLAGS "${PEDANTIC} ${TUNE_FLAGS} ${DEBUGFLAGS} ${W_WARNINGS} ${OPTFLAGS} ${MANDATORY_FLAGS} ${ALWAYS_FLAGS} ${TARGET_FLAGS} ${TEMPLATEFLAGS}")
 ADD_DEFINITIONS(${ALL_FLAGS})
 
+## Whether to use spdlog logging library
+# OPTION(USE_SPDLOG "Whether to use spdlog library" true)
+
 ## end of compiler options
 
 ####################   OS/architecture #####################

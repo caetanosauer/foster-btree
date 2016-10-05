@@ -26,7 +26,7 @@
 #include <type_traits>
 
 #include "exceptions.h"
-#include "assertions.h"
+#include "debug_log.h"
 #include "lrtype.h"
 #include "move_records.h"
 
@@ -411,6 +411,8 @@ public:
 
         assert<3>(all_keys_in_range(node));
         assert<3>(all_keys_in_range(child));
+
+        dbg::log<5>("Splitted node {} into {}", *node, *child);
     }
 
     /// Debugging/testing method to verify node's state

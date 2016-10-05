@@ -5,6 +5,7 @@ INCLUDE_DIRECTORIES (
 ENABLE_TESTING()
 
 INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/third-party/googletest/googletest/include)
+INCLUDE_DIRECTORIES (${CMAKE_SOURCE_DIR}/third-party/spdlog/include)
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
 

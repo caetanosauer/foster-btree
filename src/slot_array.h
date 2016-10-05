@@ -33,16 +33,15 @@
 #include <cstdint>
 #include <type_traits>
 #include <algorithm>
+#include <ostream>
 
-using std::size_t;
+// TODO
+#include <spdlog/fmt/ostr.h> // required to overload operator<<
 
 #include "assertions.h"
 #include "metaprog.h"
 
-// TODO Include these temporarily for print_info function
-#include <iostream>
-using std::cout;
-using std::endl;
+using std::size_t;
 
 namespace foster {
 
@@ -86,6 +85,8 @@ template<
 class alignas(Alignment) SlotArray : public SuperTypes...
 {
 public:
+
+    using ThisType = SlotArray<Key, TotalSize, Alignment, SuperTypes...>;
 
     /** @name Compile-time constants and types **/
     /**@{**/
@@ -408,21 +409,23 @@ public:
     /**@}**/
 
     /** \brief Print method used for debugging */
-    void print_info()
+    template <typename OS>
+    friend OS& operator<<(OS& out, const ThisType& s)
     {
-        sanity_check();
-        cout << "Key size = " << sizeof(Key) << " bytes" << endl;
-        cout << "PayloadPtr size = " << sizeof(PayloadPtr) << " bytes" << endl;
-        cout << "PayloadPtr size (actual) = " << PayloadPtrSize << " bytes" << endl;
-        cout << "Slot size = " << sizeof(Slot) << " bytes" << endl;
-        cout << "Array size = " << sizeof(*this) << " bytes (should be " << ArrayBytes << ")"
+        using std::endl;
+        out << "Key size = " << sizeof(Key) << " bytes" << endl;
+        out << "PayloadPtr size = " << sizeof(PayloadPtr) << " bytes" << endl;
+        out << "PayloadPtr size (actual) = " << PayloadPtrSize << " bytes" << endl;
+        out << "Slot size = " << sizeof(Slot) << " bytes" << endl;
+        out << "Array size = " << sizeof(s) << " bytes (should be " << ArrayBytes << ")"
             << endl;
-        for (SlotNumber i = 0; i < slot_count(); i++) {
-            cout << "Slot " << i << ": key = " << slots_[i].key
-                << " payloadPtr = " << slots_[i].ptr
-                << " payload = " << payloads_[slots_[i].ptr].data() << endl;
+        for (SlotNumber i = 0; i < s.slot_count(); i++) {
+            out << "Slot " << i << ": key = " << s.slots_[i].key
+                << " payloadPtr = " << s.slots_[i].ptr
+                << " payload = " << s.payloads_[s.slots_[i].ptr].data() << endl;
         }
-        cout << "-----------------------------------" << endl;
+        out << "-----------------------------------" << endl;
+        return out;
     }
 
     void sort_slots()
