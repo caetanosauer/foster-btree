@@ -128,6 +128,10 @@ struct PoormanPrefixing
         else { // same size -- do nothing
             swapped = key;
         }
+        if (std::is_signed<K>::value && std::is_unsigned<PMNK_Type>::value) {
+            // when normalizing singed integer into unsigned, most significant bit must be flipped
+            return prefix ^ (1 << (sizeof(PMNK_Type) * 8 - 1));
+        }
         return prefix;
     }
 };
