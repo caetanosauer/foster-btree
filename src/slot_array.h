@@ -347,7 +347,7 @@ public:
     /**@{**/
 
     /** \brief Number of slots currently stored in the slot vector */
-    size_t slot_count() const
+    SlotNumber slot_count() const
     {
         return header_.slot_end;
     }

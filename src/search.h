@@ -36,13 +36,9 @@ namespace foster {
  * Slot array class is given as template argument, which allows reusing a single search
  * implementation for different slot array implementations.
  */
-template <class SArray>
 class BinarySearch
 {
 public:
-
-    using SlotNumber = typename SArray::SlotNumber;
-    using Key = typename SArray::KeyType;
 
     /**
      * \brief Binary search implementation.
@@ -56,6 +52,9 @@ public:
      *      fence keys or compressed key prefix).
      * \returns True if key was found in the array; false otherwise.
      */
+    template <class SArray,
+        typename Key = typename SArray::KeyType,
+        typename SlotNumber = typename SArray::SlotNumber>
     bool operator()(const SArray& array, const Key& key, SlotNumber& ret,
             SlotNumber begin, SlotNumber end)
     {

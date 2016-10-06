@@ -52,7 +52,7 @@ using SArray = foster::SlotArray<
 template<class K, class V, class PMNK_Type, bool Sorted = true>
 using Node = foster::Node<
       K, V,
-      foster::BinarySearch<SArray<PMNK_Type>>,
+      foster::BinarySearch,
       foster::GetEncoder<PMNK_Type>::template type,
       void, // Logger
       Sorted

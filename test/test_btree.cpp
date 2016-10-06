@@ -51,7 +51,7 @@ using SArray = foster::SlotArray<
 template<class K, class V>
 using Node = foster::Node<
       K, V,
-      foster::BinarySearch<SArray>,
+      foster::BinarySearch,
       foster::GetEncoder<DftPMNK>::template type,
       void // Logger
 >;

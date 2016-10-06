@@ -247,7 +247,9 @@ protected:
         if (!Sorted) { return find_slot_unsorted(node, key, slot, value_addr); }
 
         auto pmnk = Encoder<K,V>::get_pmnk(key);
-        if (Search{}(*node, pmnk, slot, 0, node->slot_count())) {
+        auto begin = SlotNumber<N>{0};
+        auto end = node->slot_count();
+        if (Search{}(*node, pmnk, slot, begin, end)) {
             // Found poor man's normalized key -- now check if rest of the key matches
             auto found_pmnk = pmnk;
             while (found_pmnk == pmnk) {
