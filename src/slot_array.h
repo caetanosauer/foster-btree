@@ -361,7 +361,7 @@ public:
      */
     bool insert_slot(SlotNumber slot)
     {
-        assert(slot <= slot_count(), DBGINFO, "Slot number out of bounds");
+        assert<1>(slot <= slot_count(), DBGINFO, "Slot number out of bounds");
 
         if (free_space() < sizeof(Slot)) { return false; }
         memmove(&slots_[slot+1], &slots_[slot], sizeof(Slot) * (slot_count() - slot));
