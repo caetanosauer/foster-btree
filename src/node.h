@@ -58,7 +58,15 @@ public:
     static constexpr bool LoggingOn = !std::is_void<Logger>::value;
 
     template <typename N>
-    static void initialize(N) {}
+    static meta::EnableIf<LoggingOn && sizeof(N)>
+        initialize(N node)
+    {
+        Logger::initialize(node);
+    }
+
+    template <typename N>
+    static meta::EnableIf<!(LoggingOn && sizeof(N))>
+        initialize(N) {}
 
     /**
      * \brief Insert a key-value pair into the array.

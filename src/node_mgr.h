@@ -37,26 +37,6 @@
 namespace foster {
 
 /**
- * \brief Node ID generator that uses a single, program-wide atomic counter.
- */
-template <class IdType>
-class AtomicCounterIdGenerator
-{
-public:
-    using Type = IdType;
-
-    IdType generate()
-    {
-        // Counter is a local static variable instead of a static member because then it does not
-        // have to be defined in a translation unit (i.e., cpp file). This is the only way to
-        // guarantee that only one counter will be used, no matter how many units include this
-        // header.
-        static std::atomic<IdType> counter{0};
-        return ++counter;
-    }
-};
-
-/**
  * \brief A manager class for nodes, handling allocation, construction, and ID assignment.
  *
  * \tparam Node The node class being constructed.
@@ -65,14 +45,12 @@ public:
  */
 template <
     class NodePointer,
-    class IdGenerator = AtomicCounterIdGenerator<uint32_t>,
     class Allocator = std::allocator<typename NodePointer::PointeeType>
 >
 class BtreeNodeManager
 {
 public:
 
-    using IdType = typename IdGenerator::Type;
     using Node = typename NodePointer::PointeeType;
 
     /*
@@ -93,7 +71,6 @@ public:
 protected:
 
     Allocator allocator_;
-    IdGenerator idgen_;
 };
 
 

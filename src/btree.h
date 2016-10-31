@@ -41,7 +41,7 @@ class GenericBtree
 {
 public:
 
-    using NodeMgrType = NodeMgr<SArray>;
+    using NodeMgrType = NodeMgr<Pointer<SArray>>;
     using BranchNode = Node<K, Pointer<SArray>>;
     using LeafNode = Node<K, V>;
     using AdoptionType = Adoption<BranchNode, NodeMgrType>;
