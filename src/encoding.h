@@ -247,7 +247,8 @@ public:
     /** \brief Encodes a string using a length field followed by the contents */
     static char* encode(char* dest, const string& value)
     {
-        *(reinterpret_cast<LengthType*>(dest)) = value.length();
+        LengthType length = value.length();
+        *(reinterpret_cast<LengthType*>(dest)) = length;
         dest += sizeof(LengthType);
         memcpy(dest, value.data(), value.length());
         dest += value.length();
