@@ -138,6 +138,7 @@ static void copy_records_prealloc(
         memcpy(dest.get_payload(payload_dest_ptr), payload_src, length);
 
         payload_dest_ptr += length / PayloadSize;
+        if (length % PayloadSize != 0) { payload_dest_ptr++; }
         i++;
         j++;
     }
