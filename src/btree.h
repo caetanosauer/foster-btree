@@ -58,7 +58,7 @@ public:
         // TODO free/destroy all nodes
     }
 
-    void put(const K& key, const V& value, bool upsert = false)
+    void put(const K& key, const V& value, bool upsert = true)
     {
         auto leaf = BranchNode::traverse(root_, key, true /* for_update */, adoption_.get());
         assert<1>(LeafNode::is_latched(leaf, true));
