@@ -509,7 +509,7 @@ public:
 
     /// Debugging/utility function to print the array's contents.
     template <typename N>
-    static void print_node(N node, std::ostream& o = std::cout, bool print_slots = true)
+    static void print_node(N node, std::ostream& o, bool print_slots = true)
     {
         K key;
         o << "Node low=";
