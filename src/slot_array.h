@@ -161,8 +161,8 @@ private:
     HeaderData header_;
 
     union {
-        Slot slots_[SlotCount];
-        PayloadBlock payloads_[PayloadCount];
+        std::array<Slot, SlotCount> slots_;
+        std::array<PayloadBlock, PayloadCount> payloads_;
     };
 
 
@@ -287,7 +287,16 @@ public:
         }
 
         // Perform the actual movement
-        memmove(&payloads_[to], &payloads_[from], count * sizeof(PayloadBlock));
+        // CS: memmove version does not work for non-POD keys (e.g., string)
+        // memmove(&payloads_[to], &payloads_[from], count * sizeof(PayloadBlock));
+        auto begin = payloads_.begin();
+        if (shift < 0) {
+            std::move(begin + from, begin + from + count, begin + to);
+        }
+        else {
+            std::move_backward(begin + from, begin + from + count, begin + to + count);
+        }
+
         sanity_check();
 
         // Adjust pointers in the slot vector to account for the movement above.
@@ -364,7 +373,12 @@ public:
         assert<1>(slot <= slot_count(), DBGINFO, "Slot number out of bounds");
 
         if (free_space() < sizeof(Slot)) { return false; }
-        memmove(&slots_[slot+1], &slots_[slot], sizeof(Slot) * (slot_count() - slot));
+        // CS: memmove version does not work for non-POD keys (e.g., string)
+        // memmove(&slots_[slot+1], &slots_[slot], sizeof(Slot) * (slot_count() - slot));
+        auto begin = slots_.begin() + slot;
+        auto end = slots_.begin() + slot_count();
+        std::move_backward(begin, end, end + 1);
+
         header_.slot_end++;
 
         // Non-numeric keys should be empty-constructed
@@ -383,7 +397,11 @@ public:
     void delete_slot(SlotNumber slot)
     {
         if (slot < slot_count() - 1) {
-            memmove(&slots_[slot], &slots_[slot+1], sizeof(Slot) * (slot_count() - slot));
+            // CS: memmove version does not work for non-POD keys (e.g., string)
+            // memmove(&slots_[slot], &slots_[slot+1], sizeof(Slot) * (slot_count() - slot));
+            auto begin = slots_.begin() + slot;
+            auto end = slots_.begin() + slot_count();
+            std::move(begin + 1, end, begin);
         }
         header_.slot_end--;
 
@@ -405,7 +423,7 @@ public:
     /** \brief Provides access to slot in the given position.  */
     Slot& get_slot(SlotNumber slot) { return slots_[slot]; }
     const Slot& get_slot(SlotNumber slot) const { return slots_[slot]; }
-    /** \brief Convenience alias for slot() **/
+    /** \brief Convenience alias for get_slot() **/
     Slot& operator[](SlotNumber slot) { return get_slot(slot); }
     const Slot& operator[](SlotNumber slot) const { return get_slot(slot); }
 
@@ -434,7 +452,7 @@ public:
     void sort_slots()
     {
         auto cmp = [](const Slot& a, const Slot& b) { return a.key < b.key; };
-        std::stable_sort(slots_, slots_ + slot_count(), cmp);
+        std::stable_sort(slots_.begin(), slots_.begin() + slot_count(), cmp);
 
         sanity_check();
     }

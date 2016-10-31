@@ -112,11 +112,11 @@ void sequential_deletions(T& slots, bool forward, int count = -1)
 
         free_space = slots.free_space();
         slots.delete_slot(i);
-        EXPECT_EQ(initial_slot_count - (j + 1), slots.slot_count());
+        EXPECT_EQ(slots.slot_count(), initial_slot_count - (j + 1));
         EXPECT_EQ(free_space + sizeof(typename T::Slot), slots.free_space());
 
         if (slots.slot_count() == 0) { break; }
-        EXPECT_EQ(get_key<KeyType>(100 + j + 1), slots[i].key);
+        EXPECT_EQ(slots[i].key, get_key<KeyType>(100 + j + 1));
         data[4] = '0' + ((j + 1) % 10);
         EXPECT_TRUE(strncmp(data, (char*) slots.get_payload(slots[i].ptr), 6) == 0);
 
