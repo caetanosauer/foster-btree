@@ -143,7 +143,7 @@ using BaseN = Node<K, V, uint16_t>;
 
 TEST(TestSplit, SimpleSplit)
 {
-    using N = foster::FosterNode<std::string, std::string, BaseN, foster::AssignmentEncoder>;
+    using N = foster::FosterNode<std::string, std::string, BaseN, foster::InlineEncoder>;
     using S = SArray<uint16_t>;
     S n; NodePointer<S> node {&n};
 
@@ -232,7 +232,7 @@ TEST(TestSplit, SimpleSplit)
 
 TEST(TestSplit, SimpleSplitWithoutPMNK)
 {
-    using N = foster::FosterNode<uint16_t, uint16_t, BaseN, foster::AssignmentEncoder>;
+    using N = foster::FosterNode<uint16_t, uint16_t, BaseN, foster::InlineEncoder>;
     using S = SArray<uint16_t>;
 
     S n; NodePointer<S> node {&n};
@@ -314,7 +314,7 @@ void verify_foster_chain(Ptr node, int count)
 
 TEST(TestFosterChain, ManyInsertions)
 {
-    using N = foster::FosterNode<std::string, std::string, BaseN, foster::AssignmentEncoder>;
+    using N = foster::FosterNode<std::string, std::string, BaseN, foster::InlineEncoder>;
     using S = SArray<uint16_t>;
     NodeMgr<S> node_mgr;
 
@@ -346,8 +346,8 @@ TEST(TestFosterChain, ManyInsertions)
 TEST(TestGrowth, SimpleGrowth)
 {
     using S = SArray<uint16_t>;
-    using N = foster::FosterNode<std::string, std::string, BaseN, foster::AssignmentEncoder>;
-    using Branch = foster::FosterNode<std::string, NodePointer<S>, BaseN, foster::AssignmentEncoder>;
+    using N = foster::FosterNode<std::string, std::string, BaseN, foster::InlineEncoder>;
+    using Branch = foster::FosterNode<std::string, NodePointer<S>, BaseN, foster::InlineEncoder>;
     S n; NodePointer<S> node {&n};
 
     string key;
@@ -395,9 +395,9 @@ TEST(TestGrowth, Adoption)
     using S = SArray<uint16_t>;
     using N = foster::FosterNode<std::string, std::string,
           BaseN,
-          foster::AssignmentEncoder,
+          foster::InlineEncoder,
           foster::MutexLatch>;
-    using Branch = foster::FosterNode<std::string, NodePointer<S>, BaseN, foster::AssignmentEncoder>;
+    using Branch = foster::FosterNode<std::string, NodePointer<S>, BaseN, foster::InlineEncoder>;
     using Adoption = foster::EagerAdoption<Branch, NodeMgr<S>>;
     S n; NodePointer<S> node {&n};
 
@@ -420,7 +420,7 @@ TEST(TestGrowth, Adoption)
     NodePointer<S> ptr;
     std::string min_key = foster::GetMinimumKeyValue<std::string>();
 
-    // must acquire latches so that adoption assertions don't complain
+    // TODO: must acquire latches so that adoption assertions don't complain
     node->acquire_read();
     node3->acquire_read();
     Adoption adoption {std::make_shared<NodeMgr<S>>()};

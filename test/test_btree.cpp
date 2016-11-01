@@ -60,7 +60,7 @@ template <class K, class V>
 using FosterNode = foster::FosterNode<
     K, V,
     Node,
-    foster::AssignmentEncoder,
+    foster::InlineEncoder,
     foster::MutexLatch
 >;
 

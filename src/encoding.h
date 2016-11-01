@@ -182,46 +182,66 @@ public:
     static const char* decode(const char* p, T*) { return p; }
 };
 
+// template <class T>
+// class AssignmentEncoder
+// {
+// public:
+//     using Type = T;
+
+//     /** \brief Returns encoded length of a decoded value */
+//     static size_t get_payload_length(const T&) { return sizeof(T); }
+
+//     /** \brief Returns length of an encoded value */
+//     static size_t get_payload_length(void*) { return sizeof(T); }
+
+//     /** \brief Encodes a given value into a given address using the assignment operator */
+//     static char* encode(char* dest, const T& value)
+//     {
+//         new (dest) T {value};
+//         // T* value_p = reinterpret_cast<T*>(dest);
+//         // *value_p = value;
+//         return dest + sizeof(T);
+//     }
+
+//     /**
+//      * \brief Decodes a given memory area into a key-value pair
+//      *
+//      * A key or value argument given as a nullptr is not decoded. If both are nullptr, the function
+//      * does nothing.
+//      */
+//     static const char* decode(const char* src, T* value_p)
+//     {
+//         const T* value_src = reinterpret_cast<const T*>(src);
+//         if (value_p) {
+//             *value_p = *value_src;
+//         }
+//         return src + sizeof(T);
+//     }
+// };
+
 template <class T>
-class AssignmentEncoder
+class InlineEncoder
 {
 public:
     using Type = T;
 
-    /** \brief Returns encoded length of a decoded value */
     static size_t get_payload_length(const T&) { return sizeof(T); }
 
-    /** \brief Returns length of an encoded value */
     static size_t get_payload_length(void*) { return sizeof(T); }
 
-    /** \brief Encodes a given value into a given address using the assignment operator */
     static char* encode(char* dest, const T& value)
     {
-        new (dest) T {value};
-        // T* value_p = reinterpret_cast<T*>(dest);
-        // *value_p = value;
+        memcpy(dest, &value, sizeof(T));
         return dest + sizeof(T);
     }
 
-    /**
-     * \brief Decodes a given memory area into a key-value pair
-     *
-     * A key or value argument given as a nullptr is not decoded. If both are nullptr, the function
-     * does nothing.
-     */
     static const char* decode(const char* src, T* value_p)
     {
-        const T* value_src = reinterpret_cast<const T*>(src);
         if (value_p) {
-            *value_p = *value_src;
+            memcpy(value_p, src, sizeof(T));
         }
         return src + sizeof(T);
     }
-};
-
-template <class T>
-class InlineEncoder : public AssignmentEncoder<T>
-{
 };
 
 template <>
@@ -529,24 +549,7 @@ public:
 };
 
 template <class K, class V, class PMNK_Type = K>
-class DefaultEncoder :
-    public CompoundEncoder<AssignmentEncoder<K>, AssignmentEncoder<V>, PMNK_Type>
-{};
-
-template <class K, class PMNK_Type>
-class DefaultEncoder<K, string, PMNK_Type> :
-    public CompoundEncoder<AssignmentEncoder<K>, InlineEncoder<string>, PMNK_Type>
-{};
-
-template <class V, class PMNK_Type>
-class DefaultEncoder<string, V, PMNK_Type> :
-    public CompoundEncoder<InlineEncoder<string>, AssignmentEncoder<V>, PMNK_Type>
-{};
-
-template <class PMNK_Type>
-class DefaultEncoder<string, string, PMNK_Type> :
-    public CompoundEncoder<InlineEncoder<string>, InlineEncoder<string>, PMNK_Type>
-{};
+using DefaultEncoder = CompoundEncoder<InlineEncoder<K>, InlineEncoder<V>, PMNK_Type>;
 
 /**
  * Helper type function to get a 2-argument encoder template from a 3-argument one.
