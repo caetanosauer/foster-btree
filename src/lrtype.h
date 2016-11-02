@@ -30,6 +30,7 @@
  */
 
 #include <cstdint>
+#include <string>
 
 namespace foster {
 
