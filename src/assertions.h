@@ -63,9 +63,9 @@ namespace foster {
  * be compiled. When running in debug level 2, for example, only assertions using levels 0, 1, and 2
  * will be included in the compiled code.
  */
-constexpr unsigned DebugLevel = DEBUG_LEVEL;
+constexpr unsigned GlobalDebugLevel = DEBUG_LEVEL;
 constexpr unsigned DefaultDebugLevel = DEFAULT_DEBUG_LEVEL;
-constexpr bool IsDebugLevel(unsigned level) { return DebugLevel >= level; }
+constexpr bool IsDebugLevel(unsigned level) { return GlobalDebugLevel >= level; }
 
 /**
  * \brief Helper object to keep track of file, line number, and function of the assert call.
@@ -132,7 +132,7 @@ struct AssertionFailure : public std::runtime_error {
  *
  */
 template <unsigned L = DefaultDebugLevel, class E = AssertionFailure, typename... Args>
-typename std::enable_if<L <= DebugLevel>::type
+typename std::enable_if<L <= GlobalDebugLevel>::type
     assert(bool assertion, Args... args)
 {
     if (assertion) { return; }
@@ -148,7 +148,7 @@ typename std::enable_if<L <= DebugLevel>::type
  * assertion will not be evaluated.
  */
 template <unsigned L = DefaultDebugLevel, class E = AssertionFailure, typename... Args>
-typename std::enable_if<!(L <= DebugLevel)>::type
+typename std::enable_if<!(L <= GlobalDebugLevel)>::type
     assert(bool, Args...)
 {
 }

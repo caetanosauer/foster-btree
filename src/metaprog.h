@@ -175,6 +175,15 @@ constexpr size_t SizeOfTypePack()
     return SizeOfTypePackImpl<sizeof...(Types), Types...>::size;
 }
 
+/**
+ * Convert enum class to its underlying type
+ * (http://stackoverflow.com/a/8357462/1268568)
+ */
+template <typename E>
+constexpr typename std::underlying_type<E>::type enum_to_underlying(E e) {
+    return static_cast<typename std::underlying_type<E>::type>(e);
+}
+
 }} // namespace foster::meta
 
 #endif

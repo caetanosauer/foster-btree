@@ -450,7 +450,7 @@ public:
         assert<3>(all_keys_in_range(node));
         assert<3>(all_keys_in_range(child));
 
-        dbg::log<5>("Splitted node {} into {}", *node, *child);
+        dbg::trace("Splitted node {} into {}", *node, *child);
     }
 
     template <typename N>

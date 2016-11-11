@@ -107,7 +107,7 @@ public:
         Node::unset_foster_child(child);
         Node::set_high_key(child, foster_key);
 
-        dbg::log<4>("Adopted {} from {} into parent {}", foster, child, parent);
+        dbg::trace("Adopted {} from {} into parent {}", foster, child, parent);
         // Node::print_node(foster, std::cout, false);
         // Node::print_node(child, std::cout, false);
         // Node::print_node(parent, std::cout, false);
@@ -131,7 +131,7 @@ public:
         // set pointer to where root's records now are, so that traversal can continue
         root->release_write();
 
-        dbg::log<4>("Grew {} with new child {}", root, new_child);
+        dbg::trace("Grew {} with new child {}", root, new_child);
         root = new_child;
         return true;
     }
