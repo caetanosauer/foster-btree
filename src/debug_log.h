@@ -36,96 +36,100 @@
 // #endif
 
 namespace foster {
-namespace dbg {
 
-/*
- * Global compile-time options
- */
-constexpr bool EnableColors = false;
-
-std::shared_ptr<spdlog::logger> get_logger()
+class dbg
 {
-    static std::shared_ptr<spdlog::logger> LOGGER =
-        spdlog::stdout_logger_mt("foster_logger", EnableColors);
+public:
 
-    return LOGGER;
-}
+    static std::shared_ptr<spdlog::logger> get_logger()
+    {
+        static string LOGGER_NAME = "foster_logger";
+        static std::shared_ptr<spdlog::logger> LOGGER =
+            spdlog::basic_logger_mt(LOGGER_NAME, LOGGER_NAME + ".log", true /* truncate */);
+        // CS TODO: info is the default global level in spdlog (see registry.h)
+        // we probably need std::call_once (like in Options::get_description)
+        // LOGGER->set_level(spdlog::level::trace);
 
-enum class DbgLevel
-{
-    ERROR = 0,
-    WARN = 1,
-    INFO = 2,
-    DEBUG = 3,
-    TRACE = 4
-};
-
-spdlog::level::level_enum getSpdlogLevel(DbgLevel l)
-{
-    switch (l) {
-        case DbgLevel::ERROR: return spdlog::level::err;
-        case DbgLevel::WARN: return spdlog::level::warn;
-        case DbgLevel::INFO: return spdlog::level::info;
-        case DbgLevel::DEBUG: return spdlog::level::debug;
-        case DbgLevel::TRACE: return spdlog::level::trace;
+        return LOGGER;
     }
-    return spdlog::level::off;
-}
 
-/**
- * Log function statically defined depending on debug level. If the given level is lower than what
- * we're using, the function does nothing (see below). The same technique was used in the assert
- * function (see assertions.h).
- */
-template <unsigned L = DefaultDebugLevel, typename... Args>
-typename std::enable_if<(L <= GlobalDebugLevel)>::type
-    log(DbgLevel level, const Args&... args)
-{
-    get_logger()->log(getSpdlogLevel(level), std::forward<const Args&>(args)...);
-}
+    enum class DbgLevel
+    {
+        ERROR = 0,
+        WARN = 1,
+        INFO = 2,
+        DEBUG = 3,
+        TRACE = 4
+    };
 
-template <unsigned L = DefaultDebugLevel, typename... Args>
-typename std::enable_if<!(L <= GlobalDebugLevel)>::type
-    log(DbgLevel, const Args&...)
-{
-}
+    static spdlog::level::level_enum getSpdlogLevel(DbgLevel l)
+    {
+        switch (l) {
+            case DbgLevel::ERROR: return spdlog::level::err;
+            case DbgLevel::WARN: return spdlog::level::warn;
+            case DbgLevel::INFO: return spdlog::level::info;
+            case DbgLevel::DEBUG: return spdlog::level::debug;
+            case DbgLevel::TRACE: return spdlog::level::trace;
+        }
+        return spdlog::level::off;
+    }
 
-template <typename... Args>
-void trace(const Args&... args)
-{
-    log<meta::enum_to_underlying(DbgLevel::TRACE)>
-        (DbgLevel::TRACE, std::forward<const Args&>(args)...);
-}
+    /**
+     * Log function statically defined depending on debug level. If the given level is lower than what
+     * we're using, the function does nothing (see below). The same technique was used in the assert
+     * function (see assertions.h).
+     */
+    template <unsigned L = DefaultDebugLevel, typename... Args>
+    static typename std::enable_if<(L <= GlobalDebugLevel)>::type
+        log(DbgLevel level, const Args&... args)
+    {
+        get_logger()->log(getSpdlogLevel(level), std::forward<const Args&>(args)...);
+    }
 
-template <typename... Args>
-void debug(const Args&... args)
-{
-    log<meta::enum_to_underlying(DbgLevel::DEBUG)>
-        (DbgLevel::DEBUG, std::forward<const Args&>(args)...);
-}
+    template <unsigned L = DefaultDebugLevel, typename... Args>
+    static typename std::enable_if<!(L <= GlobalDebugLevel)>::type
+        log(DbgLevel level, const Args&... args)
+    {
+        get_logger()->log(getSpdlogLevel(level), std::forward<const Args&>(args)...);
+    }
 
-template <typename... Args>
-void info(const Args&... args)
-{
-    log<meta::enum_to_underlying(DbgLevel::INFO)>
-        (DbgLevel::INFO, std::forward<const Args&>(args)...);
-}
+    template <typename... Args>
+    static void trace(const Args&... args)
+    {
+        log<meta::enum_to_underlying(DbgLevel::TRACE)>
+            (DbgLevel::TRACE, std::forward<const Args&>(args)...);
+    }
 
-template <typename... Args>
-void warn(const Args&... args)
-{
-    log<meta::enum_to_underlying(DbgLevel::WARN)>
-        (DbgLevel::WARN, std::forward<const Args&>(args)...);
-}
+    template <typename... Args>
+    static void debug(const Args&... args)
+    {
+        log<meta::enum_to_underlying(DbgLevel::DEBUG)>
+            (DbgLevel::DEBUG, std::forward<const Args&>(args)...);
+    }
 
-template <typename... Args>
-void error(const Args&... args)
-{
-    log<meta::enum_to_underlying(DbgLevel::ERROR)>
-        (DbgLevel::ERROR, std::forward<const Args&>(args)...);
-}
+    template <typename... Args>
+    static void info(const Args&... args)
+    {
+        log<meta::enum_to_underlying(DbgLevel::INFO)>
+            (DbgLevel::INFO, std::forward<const Args&>(args)...);
+    }
 
-} // namespace dbg
+    template <typename... Args>
+    static void warn(const Args&... args)
+    {
+        log<meta::enum_to_underlying(DbgLevel::WARN)>
+            (DbgLevel::WARN, std::forward<const Args&>(args)...);
+    }
+
+    template <typename... Args>
+    static void error(const Args&... args)
+    {
+        log<meta::enum_to_underlying(DbgLevel::ERROR)>
+            (DbgLevel::ERROR, std::forward<const Args&>(args)...);
+    }
+
+}; // struct dbg
+
 } // namespace foster
 
 #endif
