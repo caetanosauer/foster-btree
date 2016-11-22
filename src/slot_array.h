@@ -222,7 +222,7 @@ public:
 
         size_t space_needed = get_payload_count(length) * Alignment;
         if (free_space() < space_needed) { return false; }
-        header_.payload_begin -= get_payload_count(length);
+        header_.payload_begin -= static_cast<PayloadPtr>(get_payload_count(length));
         ptr = header_.payload_begin;
 
         sanity_check();
@@ -272,7 +272,7 @@ public:
      * If movement affects the amount of free space by relocating the first used payload, the amount
      * of free space is adjusted accordingly by de- or incrementing payload_begin.
      */
-    bool shift_payloads(PayloadPtr to, PayloadPtr from, size_t count)
+    bool shift_payloads(PayloadPtr to, PayloadPtr from, PayloadPtr count)
     {
         assert<1>(to <= get_payload_end());
         assert<1>(from <= get_payload_end());
