@@ -80,7 +80,7 @@ public:
             }
 
             // 3. Copy slot and payload data into the reserved space.
-            dest.get_slot(j) = { src.get_slot(i).key, payload_dest_ptr, src.get_slot(i).ghost };
+            dest.get_slot(j) = { src.get_slot(i).key, { payload_dest_ptr, src.get_slot(i).ghost } };
             memcpy(dest.get_payload(payload_dest_ptr), payload_src, length);
 
             i++;

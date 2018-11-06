@@ -35,82 +35,64 @@
 #include <thread>
 #include <vector>
 #include <future>
+#include <iostream>
 
 #include "slot_array.h"
 #include "encoding.h"
 #include "search.h"
-#include "kv_array.h"
 #include "node.h"
+#include "node_foster.h"
 #include "node_mgr.h"
 #include "pointers.h"
-#include "btree_level.h"
-#include "btree_static.h"
-#include "btree_adoption.h"
+#include "btree.h"
 #include "latch_mutex.h"
-
-namespace foster {
 
 constexpr size_t DftArrayBytes = 4096;
 constexpr size_t DftAlignment = 8;
 
-template<class PMNK_Type>
-using SArray = foster::SlotArray<PMNK_Type, DftArrayBytes, DftAlignment>;
+using DftPMNK = uint16_t;
 
-template<class K, class V>
-using KVArray = foster::KeyValueArray<K, V,
-      SArray<uint16_t>,
-      foster::BinarySearch<SArray<uint16_t>>,
-      foster::CompoundEncoder<foster::AssignmentEncoder<K>, foster::AssignmentEncoder<V>, uint16_t>
-      // foster::DefaultEncoder<K, V, uint16_t>
->;
-
-template<class K, class V>
-using KVArrayNoPMNK = foster::KeyValueArray<K, V,
-      SArray<K>,
-      foster::BinarySearch<SArray<K>>,
-      foster::CompoundEncoder<foster::AssignmentEncoder<K>, foster::AssignmentEncoder<V>, K>
-      // foster::DefaultEncoder<K, V, K>
->;
-
-template<class K, class V>
-using BTNode = foster::BtreeNode<K, V,
-    KVArray,
-    foster::PlainPtr,
-    unsigned
->;
-
-template<class K, class V>
-using BTNodeNoPMNK = foster::BtreeNode<K, V,
-    KVArrayNoPMNK,
-    foster::PlainPtr,
-    unsigned,
+using SArray = foster::SlotArray<
+    DftPMNK,
+    DftArrayBytes,
+    DftAlignment,
+    // base classes
+    foster::FosterNodePayloads,
     foster::MutexLatch
 >;
 
+template<class K, class V>
+using Node = foster::Node<
+      K, V,
+      foster::BinarySearch,
+      foster::GetEncoder<DftPMNK>::template type,
+      void // Logger
+>;
+
+template <class K, class V>
+using FosterNode = foster::FosterNode<
+    K, V,
+    Node,
+    foster::InlineEncoder,
+    foster::MutexLatch
+>;
+
+template <class T>
+using NodePointer = foster::PlainPtr<T>;
+
 template<class Node>
-using NodeMgr = foster::BtreeNodeManager<Node, foster::AtomicCounterIdGenerator<unsigned>>;
+using NodeMgr = foster::BtreeNodeManager<NodePointer<SArray>>;
 
-template<class K, class V, unsigned L>
-using BTLevel = foster::BtreeLevel<
-    K, V, L,
-    BTNode,
-    foster::EagerAdoption,
-    NodeMgr
+template <class K, class V>
+using Btree = foster::GenericBtree<
+    K, V,
+    SArray,
+    FosterNode,
+    NodePointer,
+    NodeMgr,
+    foster::EagerAdoption
 >;
 
-template<class K, class V, unsigned L>
-using BTLevelNoPMNK = foster::BtreeLevel<
-    K, V, L,
-    BTNodeNoPMNK,
-    foster::EagerAdoption,
-    NodeMgr
->;
-
-template<class K, class V, unsigned L>
-using SBtree = foster::StaticBtree<K, V, L, BTLevel>;
-
-template<class K, class V, unsigned L>
-using SBtreeNoPMNK = foster::StaticBtree<K, V, L, BTLevelNoPMNK>;
 
 template<class T> T convert(int n) { return static_cast<T>(n); }
 
@@ -178,7 +160,5 @@ struct Lookup<std::map<K,V>, K, V> {
         return map[convert<K>(i)];
     }
 };
-
-} // namespace foster
 
 #endif

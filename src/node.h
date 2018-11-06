@@ -142,7 +142,7 @@ public:
             node->free_payload(payload, payload_length);
             return false;
         }
-        node->get_slot(slot) = { Encoder<K,V>::get_pmnk(key), payload, false };
+        node->get_slot(slot) = { Encoder<K,V>::get_pmnk(key), { payload, false } };
 
         return true;
     }

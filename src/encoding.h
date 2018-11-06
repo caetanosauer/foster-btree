@@ -332,7 +332,7 @@ struct TupleEncodingHelper
 
     template <typename... T>
     static typename std::enable_if<!(N < sizeof...(T)), size_t>::type
-    get_payload_length(void* ptr) // empty tuple
+    get_payload_length(void*) // empty tuple
     {
         return 0;
     }
@@ -384,7 +384,7 @@ struct VariadicEncodingHelper<0, FieldEncoder, Types...>
 {
     static size_t get_payload_length() { return 0; }
 
-    static size_t get_payload_length(void* ptr) { return ptr; }
+    static size_t get_payload_length(void*) { return 0; }
 
     static char* encode(char* dest) { return dest; }
 
@@ -425,7 +425,6 @@ struct VariadicEncodingHelper<N, FieldEncoder, T, Types...>
 template <template <typename T> class FieldEncoder, typename... Types>
 using VariadicEncoder = VariadicEncodingHelper<sizeof...(Types), FieldEncoder, Types...>;
 
-template <>
 template <typename... Types>
 class InlineEncoder<std::tuple<Types...>>
 {

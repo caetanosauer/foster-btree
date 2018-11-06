@@ -21,25 +21,21 @@
 
 #include "simplebench.h"
 
-namespace foster {
-
-template<template<class,class,unsigned> class Btree, unsigned Levels, class K, class V>
+template<template<class,class> class Btree, class K, class V>
 void compare_with_std_map(int count)
 {
-    static_assert(Levels > 0, "Levels must be > 0");
-
     Stopwatch sw;
     std::mt19937 rng;
     std::uniform_int_distribution<int> gen(0, count);
 
     {
-        Btree<K, V, Levels-1> tree;
+        Btree<K, V> tree;
         for (int i = 0; i < count; i++) {
-            Insert<Btree<K, V, Levels-1>, K, V>{}(tree, i);
+            Insert<Btree<K, V>, K, V>{}(tree, i);
         }
         sw.dump("foster", "insert", count);
 
-        Lookup<Btree<K, V, Levels-1>, K, V> lookup;
+        Lookup<Btree<K, V>, K, V> lookup;
         for (int i = 0; i < count; i++) {
             int k = gen(rng);
             lookup(tree, k);
@@ -63,10 +59,10 @@ void compare_with_std_map(int count)
     }
 }
 
-template<template<class,class,unsigned> class Btree, unsigned Levels, class K, class V>
+template<template<class,class> class Btree, class K, class V>
 void concurrent_test(int num_threads, int count)
 {
-    Btree<K, V, Levels-1> tree;
+    Btree<K, V> tree;
 
     auto f = [&tree,count] (uint32_t mask) {
         int inserted = 0;
@@ -74,8 +70,8 @@ void concurrent_test(int num_threads, int count)
         std::mt19937 rng;
         std::uniform_int_distribution<int> gen(0, count);
 
-        Insert<Btree<K, V, Levels-1>, K, V> insert;
-        Lookup<Btree<K, V, Levels-1>, K, V> lookup;
+        Insert<Btree<K, V>, K, V> insert;
+        Lookup<Btree<K, V>, K, V> lookup;
 
         try {
             while (inserted < count) {
@@ -109,23 +105,20 @@ void concurrent_test(int num_threads, int count)
     sw.dump("foster_" + std::to_string(num_threads), "operation", count * num_threads);
 }
 
-
-} // namespace foster
-
 int main(int, char**)
 {
-    int max = 1000000;
-    // std::cout << "=== Integer keys, no PMNK ===" << std::endl;
-    // foster::compare_with_std_map<foster::SBtreeNoPMNK, 3, int, int>(max);
+    int max = 1000;
+    std::cout << "=== Integer keys, no PMNK ===" << std::endl;
+    compare_with_std_map<Btree, int, int>(max);
 
-    // std::cout << "=== String keys, no PMNK ===" << std::endl;
-    // foster::compare_with_std_map<foster::SBtreeNoPMNK, 3, string, string>(max);
+    std::cout << "=== String keys, no PMNK ===" << std::endl;
+    compare_with_std_map<Btree, string, string>(max);
 
-    // std::cout << "=== String keys, with PMNK ===" << std::endl;
-    // foster::compare_with_std_map<foster::SBtree, 3, string, string>(max);
+    std::cout << "=== String keys, with PMNK ===" << std::endl;
+    compare_with_std_map<Btree, string, string>(max);
 
     for (int i = 1; i <= 8; i++) {
         int num_threads = i;
-        foster::concurrent_test<foster::SBtreeNoPMNK, 3, int, int>(num_threads, max/num_threads);
+        concurrent_test<Btree, int, int>(num_threads, max/num_threads);
     }
 }
