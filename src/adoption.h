@@ -55,27 +55,7 @@ public:
         N foster;
         if (!Node::get_foster_child(child, foster)) { return false; }
 
-        // First attempt latch upgrade on parent and on child (if it's not already latched exclusively)
-        bool child_latch_upgraded = false;
-
-        // Parent is always latched in shared mode
-        if (!parent->attempt_upgrade()) { return false; }
-        if (child->has_reader()) {
-            if (!child->attempt_upgrade()) {
-                parent->downgrade();
-                return false;
-            }
-            child_latch_upgraded = true;
-        }
-
-        // Latching was successful or it's disabled -- proceed with adoption
-        bool success = do_adopt(parent, child, foster);
-
-        // Release/downgrade acquired latches
-        parent->downgrade();
-        if (child_latch_upgraded) { child->downgrade(); }
-
-        return success;
+        return do_adopt(parent, child, foster);
     }
 
     template <typename N>
@@ -117,19 +97,8 @@ public:
     template <typename N>
     bool try_grow(N& root)
     {
-        // root node should be latched in X mode, which means that "try" always succeeds
-        bool was_x_latch = root->has_writer();
-        assert<1>(root->has_reader() || root->has_writer());
-        // TODO this could starve
-        while (!root->has_writer()) { root->attempt_upgrade(); }
-        assert<1>(root->has_writer());
-
         auto new_child = node_mgr_->template construct_node<Node>();
-        Node::latch_pointer(new_child, was_x_latch);
         Node::grow(root, new_child);
-
-        // set pointer to where root's records now are, so that traversal can continue
-        root->release_write();
 
         dbg::trace("Grew {} with new child {}", root, new_child);
         root = new_child;

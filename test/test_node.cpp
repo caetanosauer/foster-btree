@@ -32,7 +32,6 @@
 #include "node_mgr.h"
 #include "pointers.h"
 #include "adoption.h"
-#include "latch_mutex.h"
 
 // TODO improve tests by using generic definitions and better paremetrization
 
@@ -45,7 +44,6 @@ using SArray = foster::SlotArray<
     DftArrayBytes,
     DftAlignment,
     // base classes
-    foster::MutexLatch,
     foster::FosterNodePayloads
 >;
 
@@ -393,8 +391,7 @@ TEST(TestGrowth, Adoption)
     using S = SArray<uint16_t>;
     using N = foster::FosterNode<std::string, std::string,
           BaseN,
-          foster::InlineEncoder,
-          foster::MutexLatch>;
+          foster::InlineEncoder>;
     using Branch = foster::FosterNode<std::string, NodePointer<S>, BaseN, foster::InlineEncoder>;
     using Adoption = foster::EagerAdoption<Branch, NodeMgr<S>>;
     S n; NodePointer<S> node {&n};
@@ -418,9 +415,6 @@ TEST(TestGrowth, Adoption)
     NodePointer<S> ptr;
     std::string min_key = foster::GetMinimumKeyValue<std::string>();
 
-    // TODO: must acquire latches so that adoption assertions don't complain
-    node->acquire_read();
-    node3->acquire_read();
     Adoption adoption {std::make_shared<NodeMgr<S>>()};
     bool adopted = adoption.try_adopt(node, node3);
     EXPECT_TRUE(adopted);

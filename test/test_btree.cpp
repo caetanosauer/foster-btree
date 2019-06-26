@@ -32,7 +32,6 @@
 #include "node_mgr.h"
 #include "pointers.h"
 #include "btree.h"
-#include "latch_mutex.h"
 
 constexpr size_t DftArrayBytes = 4096;
 constexpr size_t DftAlignment = 8;
@@ -44,8 +43,7 @@ using SArray = foster::SlotArray<
     DftArrayBytes,
     DftAlignment,
     // base classes
-    foster::FosterNodePayloads,
-    foster::MutexLatch
+    foster::FosterNodePayloads
 >;
 
 template<class K, class V>
@@ -59,8 +57,7 @@ template <class K, class V>
 using FosterNode = foster::FosterNode<
     K, V,
     Node,
-    foster::InlineEncoder,
-    foster::MutexLatch
+    foster::InlineEncoder
 >;
 
 template <class T>

@@ -61,7 +61,6 @@ public:
     void put(const K& key, const V& value, bool upsert = true)
     {
         auto leaf = BranchNode::traverse(root_, key, true /* for_update */, adoption_.get());
-        assert<1>(LeafNode::is_latched(leaf, true));
         if (upsert) {
             // insert node if not existing, otherwise just update it
             // TODO implement update/overwrite method
@@ -69,45 +68,32 @@ public:
         }
         // TODO: Upsert logic should be in Node
         bool inserted = LeafNode::insert(leaf, key, value);
-        assert<1>(LeafNode::is_latched(leaf, true));
 
         while (!inserted) {
             // Node is full -- split required
-            assert<1>(LeafNode::is_latched(leaf, true));
             auto new_node = node_mgr_->template construct_node<LeafNode>();
             LeafNode::split(leaf, new_node);
 
             // Decide if insertion should go into old or new node
             if (!LeafNode::key_range_contains(leaf, key)) {
                 assert<1>(LeafNode::key_range_contains(new_node, key));
-                assert<1>(LeafNode::is_latched(leaf, true));
-                LeafNode::latch_pointer(new_node, true);
-                LeafNode::unlatch_pointer(leaf, true);
                 leaf = new_node;
             }
 
-            assert<1>(LeafNode::is_latched(leaf, true));
             inserted = LeafNode::insert(leaf, key, value);
         }
-
-        // TODO latch should be released when pointer is destroyed
-        LeafNode::unlatch_pointer(leaf, true);
     }
 
     bool get(const K& key, V& value)
     {
         auto leaf = BranchNode::traverse(root_, key, false /* for_update */, adoption_.get());
-        bool res = LeafNode::find(leaf, key, value);
-        LeafNode::unlatch_pointer(leaf, false);
-        return res;
+        return LeafNode::find(leaf, key, value);
     }
 
     bool remove(const K& key)
     {
         auto leaf = BranchNode::traverse(root_, key, true /* for_update */, adoption_.get());
-        bool res = LeafNode::remove(leaf, key);
-        LeafNode::unlatch_pointer(leaf, true);
-        return res;
+        return LeafNode::remove(leaf, key);
     }
 
 private:

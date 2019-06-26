@@ -29,7 +29,6 @@
 #include "node_mgr.h"
 #include "pointers.h"
 #include "btree.h"
-#include "latch_mutex.h"
 
 constexpr size_t DftArrayBytes = 4096;
 constexpr size_t DftAlignment = 8;

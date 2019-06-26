@@ -127,8 +127,7 @@ template <
     class K,
     class V,
     template <typename,typename> class Base,
-    template <typename> class Encoder,
-    class Latch = void
+    template <typename> class Encoder
 >
 class FosterNode : public Base<K,V>
 {
@@ -138,8 +137,6 @@ public:
     using ValueType = V;
     using ThisType = FosterNode<K, V, Base, Encoder>;
     using BaseNode = Base<K, V>;
-
-    static constexpr bool LatchingOn = !std::is_void<Latch>::value;
 
     template <typename N>
     static void initialize(N node, uint8_t level = 0)
@@ -201,24 +198,17 @@ public:
     static N traverse(N branch, const K& key, bool for_update,
             Adoption* adoption = nullptr, unsigned depth = 0)
     {
-        // If this is root node, latch it here
-        if (depth == 0) { latch_pointer(branch, for_update); }
 
         // Descend into the target child node
         auto child = branch->level() == 0 ? branch :
             descend_to_child(branch, key, for_update, adoption, depth);
 
-        // Release latch on parent
-        if (branch->level() > 0) { unlatch_pointer(branch, for_update); }
-
         // Now we found the target child node, but key may be somewhere in the foster chain
-        // TODO if key is in the foster chain, we don't need to latch leaf child in X mode
         assert<1>(fence_contains(child, key));
         while (child && !key_range_contains(child, key)) {
             // Check if we should grow the tree (i.e., if foster parent is root).
             // When tree only has one level, this is the only place where we can grow it,
             // otherwise it is done in descend_to_child
-            assert<1>(is_latched(child));
             if (child == branch && depth == 0) {
                 adoption->try_grow(child);
                 return traverse(child, key, for_update, adoption, depth + 1);
@@ -227,9 +217,7 @@ public:
             N foster;
             bool has_foster = get_foster_child(child, foster);
             assert<1>(has_foster);
-            latch_pointer(foster, for_update);
 
-            unlatch_pointer(child, for_update);
             child = foster;
         }
 
@@ -254,7 +242,6 @@ protected:
 
         assert<1>(branch);
         while (true) {
-            assert<1>(is_latched(branch));
             // Branch nodes that participate in a traversal must not be empty
             assert<1>(branch->slot_count() > 0 || has_foster_child(branch));
             // assert<1>(branch->has_reader());
@@ -276,19 +263,13 @@ protected:
                 N foster {nullptr};
                 get_foster_child(branch, foster);
                 assert<1>(foster);
-                latch_pointer(foster, for_update);
-                unlatch_pointer(branch, for_update);
                 branch = foster;
                 continue;
             }
             assert<1>(key_range_contains(branch, key));
 
-            // Latch child node before proceeding
-            latch_pointer(child, for_update);
-
             // Try do adopt child's foster child -- restart traversal if it works
             if (adoption && adoption->try_adopt(branch, child)) {
-                unlatch_pointer(child, for_update);
                 continue;
             }
 
@@ -296,7 +277,6 @@ protected:
         }
 
         assert<1>(child);
-        assert<1>(is_latched(child));
         return child;
     }
 
@@ -522,50 +502,6 @@ public:
 
         if (print_slots) { BaseNode::print(node, o); }
     }
-
-// TODO: these are only public because caller must release latch manually after a call to traverse
-// We should implement a guard object to release latches automatically
-// (like Zero's (ugly) btree_page_h or stl's unique_lock<T>
-// private:
-
-    template <typename NodePtr>
-    static meta::EnableIf<LatchingOn && sizeof(NodePtr)>
-        latch_pointer(NodePtr child, bool ex_mode)
-    {
-        // Exclusive latch is only required at leaf nodes during normal traversal.
-        // (If required, splits, merges, and adoptions will attempt upgrade on branch nodes)
-        if (child->level() == 0 && ex_mode) { child->acquire_write(); }
-        else { child->acquire_read(); }
-    }
-
-    template <typename NodePtr>
-    static meta::EnableIf<LatchingOn && sizeof(NodePtr)>
-        unlatch_pointer(NodePtr child, bool ex_mode)
-    {
-        // Exclusive latch is only required at leaf nodes during normal traversal.
-        // (If required, splits, merges, and adoptions will attempt upgrade on branch nodes)
-        if (child->level() == 0 && ex_mode) { child->release_write(); }
-        else { child->release_read(); }
-    }
-
-    template <typename NodePtr>
-    static meta::EnableIf<LatchingOn && sizeof(NodePtr), bool>
-        is_latched(NodePtr child, bool ex_mode = false)
-    {
-        return (!ex_mode && child->has_reader()) || child->has_writer();
-    }
-
-    template <typename NodePtr>
-    static meta::EnableIf<!(LatchingOn && sizeof(NodePtr))>
-        latch_pointer(NodePtr, bool) {}
-
-    template <typename NodePtr>
-    static meta::EnableIf<!(LatchingOn && sizeof(NodePtr))>
-        unlatch_pointer(NodePtr, bool) {}
-
-    template <typename NodePtr>
-    static meta::EnableIf<!(LatchingOn && sizeof(NodePtr)), bool>
-        is_latched(NodePtr, bool = false) { return true; }
 
 protected:
 
