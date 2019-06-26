@@ -35,9 +35,6 @@
 #include <algorithm>
 #include <ostream>
 
-// TODO
-#include <spdlog/fmt/ostr.h> // required to overload operator<<
-
 #include "assertions.h"
 #include "metaprog.h"
 
@@ -63,7 +60,7 @@ namespace foster {
  * and the payloads are not interpreted in any way (for instance, the data structure does not keep
  * track of the payload length associated with each key). It does however provide basic memory
  * management, slot ordering, ghost bits, and key-payload association. For details of how
- * higher-level functionality is implemented based on this class, see, e.g., kv_array.h.
+ * higher-level functionality is implemented based on this class.
  *
  * The template parameters allow the definition of different slot array layouts.
  * \tparam Key The type used for keys. Must be integral or floating-point, e.g., uint32_t or double.

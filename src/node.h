@@ -37,7 +37,6 @@ template <
     class V,
     class Search,
     template <class, class> class Encoder,
-    class Logger = void,
     bool Sorted = true
 >
 class Node
@@ -46,8 +45,7 @@ public:
 
     using KeyType = K;
     using ValueType = V;
-    using LoggerType = Logger;
-    using ThisType = Node<K, V, Search, Encoder, Logger, Sorted>;
+    using ThisType = Node<K, V, Search, Encoder, Sorted>;
     using EncoderType = Encoder<K, V>;
 
     template <typename N>
@@ -55,25 +53,15 @@ public:
     template <typename N>
     using PayloadPtr = typename N::PointeeType::PayloadPtr;
 
-    static constexpr bool LoggingOn = !std::is_void<Logger>::value;
-
     template <typename N>
-    static meta::EnableIf<LoggingOn && sizeof(N)>
-        initialize(N node)
-    {
-        Logger::initialize(node);
-    }
-
-    template <typename N>
-    static meta::EnableIf<!(LoggingOn && sizeof(N))>
-        initialize(N) {}
+    static initialize(N) {}
 
     /**
      * \brief Insert a key-value pair into the array.
      * \returns true if insertion succeeded (i.e., if there was enough free space)
      */
     template <typename N>
-    static bool insert(N node, const K& key, const V& value, bool logit = true)
+    static bool insert(N node, const K& key, const V& value)
     {
         // 1. Insert key and allocate empty payload space for the pair
         SlotNumber<N> slot {0};
@@ -88,26 +76,8 @@ public:
         // TODO in a profile run with debug level 0, the call below is still registered!
         // assert<3>(!Sorted || is_sorted());
 
-        if (logit) { log(node, LRType::Insert, key, value); }
-
         return true;
     }
-
-    /**
-     * '&& sizeof...(Args)' is just required to make enable_if work, because it must depend on all
-     * template arguments
-     */
-    template <typename N, typename... Args>
-    static meta::EnableIf<LoggingOn && sizeof...(Args) && sizeof(N)>
-        log(N node, const Args&... args)
-    {
-        node->log(args...);
-    }
-
-    template <typename... Args>
-    static meta::EnableIf<!(LoggingOn && sizeof...(Args))>
-        log(const Args&...) {}
-
 
     /**
      * \brief Insert a slot with the given key and reserve the given amount of payload.
@@ -152,7 +122,7 @@ public:
      * \throws KeyNotFoundException if key does not exist in the array.
      */
     template <typename N>
-    static bool remove(N node, const K& key, bool must_exist = true, bool logit = true)
+    static bool remove(N node, const K& key, bool must_exist = true)
     {
         // 1. Find slot containing the given key.
         SlotNumber<N> slot;
@@ -166,8 +136,6 @@ public:
         size_t payload_length = Encoder<K,V>::get_payload_length(node->get_payload(payload));
         node->free_payload(payload, payload_length);
         node->delete_slot(slot);
-
-        if (logit) { log(node, LRType::Remove, key); }
 
         return true;
     }

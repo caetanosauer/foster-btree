@@ -43,7 +43,6 @@ using Node = foster::Node<
       K, V,
       foster::BinarySearch,
       foster::GetEncoder<PMNK_Type>::template type,
-      void, // Logger
       Sorted
 >;
 
