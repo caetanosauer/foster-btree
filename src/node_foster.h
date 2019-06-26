@@ -27,7 +27,6 @@
 
 #include "exceptions.h"
 #include "debug_log.h"
-#include "lrtype.h"
 #include "move_records.h"
 
 namespace foster {
@@ -404,7 +403,7 @@ public:
     }
 
     template <typename N>
-    static void rebalance(N node, bool logit = true)
+    static void rebalance(N node)
     {
         using SlotNumber = typename BaseNode::template SlotNumber<N>;
         // TODO support different policies for picking the split key
@@ -424,10 +423,6 @@ public:
 
         K split_key;
         BaseNode::read_slot(node, split_slot, &split_key, nullptr);
-
-        // TODO for redo, key should be an argument of the method
-        // TODO there should be an argument for "direction" of rebalance
-        if (logit) { BaseNode::log(node, LRType::Rebalance, split_key); }
 
         // STEP 2: move records
         bool moved = RecordMover<typename BaseNode::EncoderType>::move_records

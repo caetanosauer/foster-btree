@@ -27,7 +27,6 @@
 
 #include "exceptions.h"
 #include "assertions.h"
-#include "lrtype.h"
 #include "adoption.h"
 
 namespace foster {
