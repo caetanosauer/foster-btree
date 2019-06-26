@@ -49,12 +49,11 @@ using SArray = foster::SlotArray<
     foster::FosterNodePayloads
 >;
 
-template<class K, class V, class PMNK_Type, bool Sorted = true>
+template<class K, class V, class PMNK_Type>
 using Node = foster::Node<
       K, V,
       foster::BinarySearch,
-      foster::GetEncoder<PMNK_Type>::template type,
-      Sorted
+      foster::GetEncoder<PMNK_Type>::template type
 >;
 
 template <class T>

@@ -36,8 +36,7 @@ template <
     class K,
     class V,
     class Search,
-    template <class, class> class Encoder,
-    bool Sorted = true
+    template <class, class> class Encoder
 >
 class Node
 {
@@ -45,7 +44,7 @@ public:
 
     using KeyType = K;
     using ValueType = V;
-    using ThisType = Node<K, V, Search, Encoder, Sorted>;
+    using ThisType = Node<K, V, Search, Encoder>;
     using EncoderType = Encoder<K, V>;
 
     template <typename N>
@@ -74,7 +73,7 @@ public:
         void* payload_addr = node->get_payload_for_slot(slot);
         Encoder<K,V>::encode(payload_addr, key, value);
         // TODO in a profile run with debug level 0, the call below is still registered!
-        // assert<3>(!Sorted || is_sorted());
+        // assert<3>(is_sorted());
 
         return true;
     }
@@ -92,11 +91,8 @@ public:
             SlotNumber<N>& slot)
     {
         // 1. Find slot into which to insert new pair.
-        if (Sorted && find_slot(node, key, slot)) {
+        if (find_slot(node, key, slot)) {
             throw ExistentKeyException<K>(key);
-        }
-        else if (!Sorted) {
-            slot = node->slot_count();
         }
 
         // 2. Allocate space in the slot array for the encoded payload.
@@ -220,8 +216,6 @@ protected:
     static bool find_slot(N node, const K& key, SlotNumber<N>& slot,
             char** value_addr = nullptr)
     {
-        if (!Sorted) { return find_slot_unsorted(node, key, slot, value_addr); }
-
         auto pmnk = Encoder<K,V>::get_pmnk(key);
         auto begin = SlotNumber<N>{0};
         auto end = node->slot_count();
