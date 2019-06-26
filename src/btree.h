@@ -60,7 +60,7 @@ public:
 
     void put(const K& key, const V& value, bool upsert = true)
     {
-        auto leaf = BranchNode::traverse(root_, key, true /* for_update */, adoption_.get());
+        auto leaf = BranchNode::traverse(root_, key, adoption_.get());
         if (upsert) {
             // insert node if not existing, otherwise just update it
             // TODO implement update/overwrite method
@@ -86,13 +86,13 @@ public:
 
     bool get(const K& key, V& value)
     {
-        auto leaf = BranchNode::traverse(root_, key, false /* for_update */, adoption_.get());
+        auto leaf = BranchNode::traverse(root_, key, adoption_.get());
         return LeafNode::find(leaf, key, value);
     }
 
     bool remove(const K& key)
     {
-        auto leaf = BranchNode::traverse(root_, key, true /* for_update */, adoption_.get());
+        auto leaf = BranchNode::traverse(root_, key, adoption_.get());
         return LeafNode::remove(leaf, key);
     }
 

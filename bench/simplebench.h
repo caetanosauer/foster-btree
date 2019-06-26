@@ -55,7 +55,6 @@ using SArray = foster::SlotArray<
     DftPMNK,
     DftArrayBytes,
     DftAlignment,
-    // base classes
     foster::FosterNodePayloads
 >;
 
@@ -63,8 +62,7 @@ template<class K, class V>
 using Node = foster::Node<
       K, V,
       foster::BinarySearch,
-      foster::GetEncoder<DftPMNK>::template type,
-      void // Logger
+      foster::GetEncoder<DftPMNK>::template type
 >;
 
 template <class K, class V>

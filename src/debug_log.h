@@ -31,9 +31,8 @@
 #include "assertions.h"
 #include "metaprog.h"
 
-// #if USE_SPDLOG
 #include <spdlog/spdlog.h>
-// #endif
+#include <spdlog/sinks/basic_file_sink.h>
 
 namespace foster {
 

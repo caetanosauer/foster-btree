@@ -322,7 +322,7 @@ TEST(TestFosterChain, ManyInsertions)
     for (int i = 0; i < max; i++) {
         auto key = "key" + std::to_string(i);
         auto value = "value" + std::to_string(i);
-        auto target = N::traverse(node, key, true, static_cast<DummyAdoption*>(nullptr));
+        auto target = N::traverse(node, key, static_cast<DummyAdoption*>(nullptr));
         bool inserted = N::insert(target, key, value);
         if (!inserted) {
             // TODO: yes, there's a memory leak here
@@ -332,7 +332,7 @@ TEST(TestFosterChain, ManyInsertions)
 
             verify_foster_chain<N, std::string>(node, splits);
 
-            target = N::traverse(node, key, true, static_cast<DummyAdoption*>(nullptr));
+            target = N::traverse(node, key, static_cast<DummyAdoption*>(nullptr));
             inserted = N::insert(target, key, value);
             EXPECT_TRUE(inserted);
         }

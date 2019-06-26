@@ -75,8 +75,6 @@ public:
             // Decide if insertion should go into old or new node
             if (!Node::key_range_contains(parent, foster_key)) {
                 assert<1>(Node::key_range_contains(new_node, foster_key));
-                new_node->acquire_write();
-                parent->release_write();
                 parent = new_node;
             }
 
@@ -87,7 +85,7 @@ public:
         Node::unset_foster_child(child);
         Node::set_high_key(child, foster_key);
 
-        dbg::trace("Adopted {} from {} into parent {}", foster, child, parent);
+        // dbg::trace("Adopted {} from {} into parent {}", foster, child, parent);
         // Node::print_node(foster, std::cout, false);
         // Node::print_node(child, std::cout, false);
         // Node::print_node(parent, std::cout, false);
@@ -100,7 +98,7 @@ public:
         auto new_child = node_mgr_->template construct_node<Node>();
         Node::grow(root, new_child);
 
-        dbg::trace("Grew {} with new child {}", root, new_child);
+        // dbg::trace("Grew {} with new child {}", root, new_child);
         root = new_child;
         return true;
     }

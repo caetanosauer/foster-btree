@@ -52,7 +52,7 @@ public:
     using PayloadPtr = typename N::PointeeType::PayloadPtr;
 
     template <typename N>
-    static initialize(N) {}
+    static void initialize(N) {}
 
     /**
      * \brief Insert a key-value pair into the array.
@@ -187,7 +187,7 @@ public:
     static bool find(N node, const K& key, V& value)
     {
         SlotNumber<N> slot {0};
-        char* value_addr;
+        char* value_addr = nullptr;
         bool ret = find_slot(node, key, slot, &value_addr);
         Encoder<K, V>::decode_value(value_addr, &value);
         return ret;

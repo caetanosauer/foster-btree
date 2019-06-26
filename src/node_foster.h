@@ -195,13 +195,13 @@ public:
         typename N,
         typename Adoption
     >
-    static N traverse(N branch, const K& key, bool for_update,
+    static N traverse(N branch, const K& key,
             Adoption* adoption = nullptr, unsigned depth = 0)
     {
 
         // Descend into the target child node
         auto child = branch->level() == 0 ? branch :
-            descend_to_child(branch, key, for_update, adoption, depth);
+            descend_to_child(branch, key, adoption, depth);
 
         // Now we found the target child node, but key may be somewhere in the foster chain
         assert<1>(fence_contains(child, key));
@@ -211,7 +211,7 @@ public:
             // otherwise it is done in descend_to_child
             if (child == branch && depth == 0) {
                 adoption->try_grow(child);
-                return traverse(child, key, for_update, adoption, depth + 1);
+                return traverse(child, key, adoption, depth + 1);
             }
 
             N foster;
@@ -225,7 +225,7 @@ public:
         assert<1>(key_range_contains(child, key), "Traversal reached invalid node");
 
         if (child->level() == 0) { return child; }
-        return traverse(child, key, for_update, adoption, depth + 1);
+        return traverse(child, key, adoption, depth + 1);
     }
 
 protected:
@@ -235,7 +235,7 @@ protected:
         typename Adoption
     >
     static meta::EnableIf<std::is_same<N,V>::value && sizeof(Adoption), N>
-        descend_to_child(N branch, const K& key, bool for_update,
+        descend_to_child(N branch, const K& key,
             Adoption* adoption = nullptr, unsigned depth = 0)
     {
         N child {nullptr};
@@ -282,7 +282,7 @@ protected:
 
     template <typename N, typename Adoption>
     static meta::EnableIf<!(std::is_same<N,V>::value && sizeof(Adoption)), N>
-        descend_to_child(N branch, const K&, bool, Adoption* = nullptr, unsigned = 0)
+        descend_to_child(N branch, const K&, Adoption* = nullptr, unsigned = 0)
     {
         return branch;
     }
@@ -293,7 +293,8 @@ public:
     template <typename N>
     static bool fence_contains(N node, const K& key)
     {
-        K low, high;
+        K low{};
+        K high{};
         bool low_finite = get_low_key(node, low);
         bool high_finite = get_high_key(node, high);
 
@@ -425,7 +426,7 @@ public:
         assert<3>(all_keys_in_range(node));
         assert<3>(all_keys_in_range(child));
 
-        dbg::trace("Splitted node {} into {}", *node, *child);
+        // dbg::trace("Splitted node {} into {}", *node, *child);
     }
 
     template <typename N>
